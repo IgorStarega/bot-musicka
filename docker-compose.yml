@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    container_name: bot-musicka
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    tty: true
+    stdin_open: true

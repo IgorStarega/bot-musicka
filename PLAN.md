@@ -10,6 +10,14 @@
 5.  **[ZAKOŃCZONE]** System stacji radiowych
 6.  **[ZAKOŃCZONE]** Komenda testowa `/test`
 7.  **[ZAKOŃCZONE]** Migracja wrażliwych danych do `.env`
+8.  **[ZAKOŃCZONE]** Konteneryzacja (Docker & Docker Compose)
+9.  **[ZAKOŃCZONE]** CI/CD (GitHub Actions dla GHCR)
+10. **[ZAKOŃCZONE]** Dokumentacja (README.md z instrukcją)
+
+### Dane bota:
+- **Wersja:** 1.0.0
+- **Typ:** Minimalistyczny Bot Muzyczny (MPV)
+- **Status:** Gotowy do wdrożenia
 
 ---
 Ostatnia aktualizacja: 23 kwietnia 2026
