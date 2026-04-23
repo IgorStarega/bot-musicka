@@ -18,9 +18,19 @@ class MusicBot(commands.Bot):
 
 bot = MusicBot()
 
+async def update_status(activity_text=None, idle=False):
+    try:
+        if idle:
+            await bot.change_presence(activity=discord.Game(name="/play | Radio"))
+        elif activity_text:
+            await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=activity_text))
+    except Exception as e:
+        print(f"Błąd zmiany statusu: {e}")
+
 @bot.event
 async def on_ready():
     print(f"Zalogowano jako {bot.user} (ID: {bot.user.id})")
+    await update_status(idle=True)
     print("------")
 
 async def ensure_voice(interaction: discord.Interaction):
@@ -37,6 +47,7 @@ async def ensure_voice(interaction: discord.Interaction):
 async def play_next(interaction: discord.Interaction):
     guild_id = interaction.guild_id
     if guild_id not in bot.queue or not bot.queue[guild_id]:
+        await update_status(idle=True)
         return
 
     source_url = bot.queue[guild_id].pop(0)
@@ -45,8 +56,13 @@ async def play_next(interaction: discord.Interaction):
         def after_playing(error):
             if error: print(f"Błąd: {error}")
             asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
-        interaction.guild.voice_client.play(player, after=after_playing)
-        await interaction.channel.send(f"Teraz gram: **{player.title}**")
+        
+        if interaction.guild.voice_client:
+            interaction.guild.voice_client.play(player, after=after_playing)
+            await update_status(player.title)
+            await interaction.channel.send(f"Teraz gram: **{player.title}**")
+        else:
+            await update_status(idle=True)
     except Exception as e:
         print(f"Błąd kolejki: {e}")
         await play_next(interaction)
@@ -62,14 +78,14 @@ async def play(interaction: discord.Interaction, search: str):
             urls = [e["url"] for e in info["entries"] if e]
             if guild_id not in bot.queue: bot.queue[guild_id] = []
             bot.queue[guild_id].extend(urls)
-            title = info.get('title', 'Nieznana playlista')
+            title = info.get("title", "Nieznana playlista")
             await interaction.followup.send(f"Dodano playlistę: **{title}** ({len(urls)} utworów)")
             if not interaction.guild.voice_client.is_playing(): await play_next(interaction)
         else:
             if interaction.guild.voice_client.is_playing():
                 if guild_id not in bot.queue: bot.queue[guild_id] = []
                 bot.queue[guild_id].append(info["url"])
-                title = info.get('title', 'Nieznany utwór')
+                title = info.get("title", "Nieznany utwór")
                 await interaction.followup.send(f"Dodano do kolejki: **{title}**")
             else:
                 player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
@@ -77,6 +93,7 @@ async def play(interaction: discord.Interaction, search: str):
                     if error: print(f"Błąd: {error}")
                     asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
                 interaction.guild.voice_client.play(player, after=after_playing)
+                await update_status(player.title)
                 await interaction.followup.send(f"Teraz gram: **{player.title}**")
     except Exception as e:
         await interaction.followup.send(f"Błąd: {str(e)}")
@@ -93,6 +110,7 @@ async def stop(interaction: discord.Interaction):
     if interaction.guild.voice_client:
         if interaction.guild_id in bot.queue: bot.queue[interaction.guild_id] = []
         interaction.guild.voice_client.stop()
+        await update_status(idle=True)
         await interaction.response.send_message("Zatrzymano i wyczyszczono kolejkę.")
 
 @bot.tree.command(name="radio", description="Odtwarza radio")
@@ -101,13 +119,16 @@ async def stop(interaction: discord.Interaction):
 async def radio(interaction: discord.Interaction, station: app_commands.Choice[int]):
     if not await ensure_voice(interaction): return
     await interaction.response.defer()
-    id = station.value
-    st_info = config.RADIO_STATIONS[id]
+    st_id = station.value
+    st_info = config.RADIO_STATIONS[st_id]
     if interaction.guild.voice_client.is_playing(): interaction.guild.voice_client.stop()
     source = discord.FFmpegPCMAudio(st_info["url"], **{"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000", "options": "-vn"})
     interaction.guild.voice_client.play(source)
-    await interaction.followup.send(f"Radio: **{st_info[\"name\"]}**")
+    await update_status(f"Radio: {st_info['name']}")
+    await interaction.followup.send(f"Radio: **{st_info['name']}**")
 
 if __name__ == "__main__":
-    if not config.DISCORD_TOKEN or config.DISCORD_TOKEN == "YOUR_TOKEN_HERE": print("BŁĄD: Brak tokenu!")
-    else: bot.run(config.DISCORD_TOKEN)"
+    if not config.DISCORD_TOKEN or config.DISCORD_TOKEN == "YOUR_TOKEN_HERE":
+        print("BŁĄD: Brak tokenu!")
+    else:
+        bot.run(config.DISCORD_TOKEN)
