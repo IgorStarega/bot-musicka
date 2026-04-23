@@ -1,0 +1,14 @@
+[Unit]
+Description=Music Bot Discord
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/app/bot-musicka
+ExecStart=/app/bot-musicka/.venv/bin/python main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

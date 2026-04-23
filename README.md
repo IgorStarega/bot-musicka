@@ -13,38 +13,38 @@ Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ul
 - 🐚 **Slash Commands:** Intuicyjne sterowanie za pomocą `/`.
 - 🐳 **Docker:** Gotowe pliki konfiguracyjne do szybkiego wdrożenia.
 
-## 🛠️ Instalacja Lokalna
+## 🛠️ Instalacja na Linux (Ubuntu/Debian)
 
-1. **Sklonuj repozytorium:**
+1. **Zaktualizuj system i zainstaluj zależności:**
+   ```bash
+   sudo apt update && sudo apt install -y github-cli ffmpeg python3-pip python3-venv
+   ```
+
+2. **Sklonuj repozytorium:**
    ```bash
    git clone <link-do-twojego-repo>
    cd bot-musicka
    ```
 
-2. **Skonfiguruj środowisko:**
+3. **Skonfiguruj środowisko:**
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Po polsku: .venv\Scripts\activate dla Windows
+   python3 -m venv .venv
+   source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-3. **Uzupełnij Token:**
-   - Skopiuj plik `.env` (jeśli nie istnieje, stwórz go).
-   - Wpisz swój token: `DISCORD_TOKEN=Twój_Token_Tutaj`.
+4. **Uzupełnij Token:**
+   - Edytuj `.env` (np. `nano .env`):
+     `DISCORD_TOKEN=Twój_Token_Tutaj`
 
-4. **FFmpeg:**
-   - Upewnij się, że masz zainstalowany FFmpeg w systemie.
+5. **Uruchomienie w tle (Systemd - opcjonalnie):**
+   Aby bot działał 24/7 na serwerze, zaleca się użycie Docker Compose lub stworzenie usługi systemd.
 
-5. **Uruchom:**
-   ```bash
-   python main.py
-   ```
-
-## 🐳 Wdrożenie Docker (Zalecane)
+## 🐳 Wdrożenie Docker (Zalecane na Linux)
 
 1. **Uruchomienie za pomocą Docker Compose:**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
    *Pamiętaj o wypełnieniu pliku `.env` przed uruchomieniem.*
 

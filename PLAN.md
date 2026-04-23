@@ -12,12 +12,14 @@
 7.  **[ZAKOŃCZONE]** Migracja wrażliwych danych do `.env`
 8.  **[ZAKOŃCZONE]** Konteneryzacja (Docker & Docker Compose)
 9.  **[ZAKOŃCZONE]** CI/CD (GitHub Actions dla GHCR)
-10. **[ZAKOŃCZONE]** Dokumentacja (README.md z instrukcją)
+10. **[ZAKOŃCZONE]** Dokumentacja (README.md z instrukcją pod Linux)
+11. **[ZAKOŃCZONE]** Optymalizacja pod serwer Linux (systemd service template)
 
 ### Dane bota:
 - **Wersja:** 1.0.0
+- **Platforma:** Linux / Docker
 - **Typ:** Minimalistyczny Bot Muzyczny (MPV)
-- **Status:** Gotowy do wdrożenia
+- **Status:** Gotowy do wdrożenia na Linux VRPS/LXC
 
 ---
 Ostatnia aktualizacja: 23 kwietnia 2026
