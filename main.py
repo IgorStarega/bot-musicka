@@ -46,18 +46,28 @@ async def leave(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("Nie jestem na żadnym kanale!")
 
-@bot.tree.command(name="play", description="Odtwarza piosenkę z YouTube lub URL")
-async def play(interaction: discord.Interaction, search: str):
-    await interaction.response.defer()
-    
+async def ensure_voice(interaction: discord.Interaction):
     if not interaction.guild.voice_client:
         if interaction.user.voice:
             await interaction.user.voice.channel.connect()
         else:
-            return await interaction.followup.send("Musisz być na kanale głosowym!")
+            await interaction.response.send_message("Musisz być na kanale głosowym!")
+            return False
+    elif interaction.user.voice and interaction.guild.voice_client.channel != interaction.user.voice.channel:
+        await interaction.guild.voice_client.move_to(interaction.user.voice.channel)
+    return True
 
+@bot.tree.command(name="play", description="Odtwarza piosenkę z YouTube lub URL")
+async def play(interaction: discord.Interaction, search: str):
+    if not await ensure_voice(interaction):
+        return
+
+    await interaction.response.defer()
+    
     try:
         player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
+        if interaction.guild.voice_client.is_playing():
+            interaction.guild.voice_client.stop()
         interaction.guild.voice_client.play(player, after=lambda e: print(f'Błąd odtwarzania: {e}') if e else None)
         await interaction.followup.send(f'Teraz gram: **{player.title}**')
     except Exception as e:
@@ -76,20 +86,17 @@ async def radio(interaction: discord.Interaction, id: int):
     if id not in config.RADIO_STATIONS:
         return await interaction.response.send_message("Niepoprawne ID stacji! Użyj 1-11.")
     
+    if not await ensure_voice(interaction):
+        return
+
     await interaction.response.defer()
     station = config.RADIO_STATIONS[id]
     
-    if not interaction.guild.voice_client:
-        if interaction.user.voice:
-            await interaction.user.voice.channel.connect()
-        else:
-            return await interaction.followup.send("Musisz być na kanale głosowym!")
-
     if interaction.guild.voice_client.is_playing():
         interaction.guild.voice_client.stop()
 
     source = discord.FFmpegPCMAudio(station["url"], **{
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000',
         'options': '-vn'
     })
     interaction.guild.voice_client.play(source)

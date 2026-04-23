@@ -14,6 +14,9 @@
 9.  **[ZAKOŃCZONE]** CI/CD (GitHub Actions dla GHCR)
 10. **[ZAKOŃCZONE]** Dokumentacja (README.md z instrukcją pod Linux)
 11. **[ZAKOŃCZONE]** Optymalizacja pod serwer Linux (systemd service template)
+12. **[ZAKOŃCZONE]** Poprawka błędu w składni GitHub Actions (referencja steps)
+13. **[ZAKOŃCZONE]** Analiza kodu i poprawki stabilności (stop przed play, timeouty FFmpeg)
+14. **[ZAKOŃCZONE]** Automatyczne dołączanie/przenoszenie bota przy komendach odtwarzania
 
 ### Dane bota:
 - **Wersja:** 1.0.0
