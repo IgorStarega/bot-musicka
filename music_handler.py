@@ -49,7 +49,7 @@ def is_spotify_track(url):
 def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
     base_options = {
-        "format": "18/22/43/44/best",  # MP4 video z audio (format 18 = 360p MP4, 22 = 720p, best = fallback)
+        "format": "best",  # Najprostsza - najlepszy dostępny format
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
@@ -83,7 +83,7 @@ def get_ydl_options(for_playlist=False):
 def get_ydl_search_options():
     """Opcje dla YouTube search - pomija pobieranie info aby uniknąć 152-18 błędów."""
     return {
-        "format": "18/22/43/44/best",  # MP4 video z audio
+        "format": "best",  # Najprostsza - najlepszy dostępny format
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
@@ -212,13 +212,25 @@ class YTDLSource(discord.PCMVolumeTransformer):
         
         filename = data.get("url")
         if not filename:
-            logger.error("❌ Brak strumienia audio w danych")
-            raise Exception("Brak strumienia audio")
+            logger.error("❌ Brak URL w danych yt-dlp")
+            logger.debug(f"  Dostępne pola: {list(data.keys())}")
+            raise Exception("Brak strumienia")
+        
+        # Sprawdź czy to video page URL czy stream URL
+        if "watch?v=" in filename or "youtu.be" in filename:
+            logger.warning(f"  ⚠️ Otrzymano video page URL zamiast stream URL!")
+            logger.warning(f"  URL: {filename}")
+            # Spróbuj wyciągnąć stream_url jeśli istnieje
+            if "url" in data:
+                stream_url = data.get("url")
+                if stream_url and "watch" not in stream_url:
+                    filename = stream_url
+                    logger.info(f"  ✓ Użyłem stream_url: {filename[:80]}...")
         
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")
-        logger.debug(f"  → Stream URL: {filename[:80]}...")
-        logger.debug(f"  → FFmpeg timeout: 30s, reconnect: 1, delay_max: 5s")
+        logger.debug(f"  → URL Type: {'Video Page' if 'watch?' in filename else 'Stream'}")
+        logger.debug(f"  → Full URL: {filename}")
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
     @classmethod
