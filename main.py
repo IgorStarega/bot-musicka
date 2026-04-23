@@ -192,7 +192,7 @@ async def radio_station_autocomplete(interaction: discord.Interaction, current: 
 
 @bot.tree.command(name="radio", description="Odtwarza radio")
 @app_commands.describe(station="Wybierz stację radiową z listy")
-@app_commands.autocomplete('station', radio_station_autocomplete)
+@app_commands.autocomplete(station=radio_station_autocomplete)
 async def radio(interaction: discord.Interaction, station: int):
     if not await ensure_voice(interaction): return
     await interaction.response.defer()
