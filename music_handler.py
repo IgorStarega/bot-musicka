@@ -202,9 +202,11 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 logger.debug(f"  → Potrzebny formats array aby wyciągnąć stream URL")
                 try:
                     opts = get_ydl_options()
+                    logger.info(f"  → extract_flat w opcjach: {opts.get('extract_flat', 'default')}")
                     data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(first_url, download=not stream))
-                    logger.debug(f"  ✓ Full info pobrane: {data.get('title', 'N/A')[:50]}")
-                    logger.debug(f"  → Dostępne formaty: {len(data.get('formats', []))} szt.")
+                    logger.info(f"  ✓ Full info pobrane: {data.get('title', 'N/A')[:50]}")
+                    has_formats = "formats" in data
+                    logger.info(f"  → Formats w response: {has_formats} ({len(data.get('formats', []))} szt.)")
                 except Exception as e:
                     error_str = str(e).lower()
                     if "429" in error_str or "too many" in error_str:
@@ -212,8 +214,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     logger.warning(f"  ⚠️ Nie mogę pobrać full info: {str(e)[:80]}")
                     data = first_entry
             else:
-                logger.debug(f"  ✓ Mamy już info: {first_entry.get('title', 'N/A')[:50]}")
-                logger.debug(f"  → Dostępne formaty: {len(first_entry.get('formats', []))} szt.")
+                logger.info(f"  ℹ️ Mamy już info: {first_entry.get('title', 'N/A')[:50]}")
+                logger.info(f"  → Formats dostępne: {len(first_entry.get('formats', []))} szt.")
                 data = first_entry
         
         filename = data.get("url")
@@ -228,32 +230,37 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.warning(f"  URL: {filename}")
             
             # Wyciągnij RZECZYWISTY stream URL z formats array
-            if "formats" in data and data["formats"]:
-                logger.debug(f"  → Szukam stream URL w formats ({len(data['formats'])} formatów)")
+            logger.info(f"  📋 Sprawdzam formats array...")
+            has_formats = "formats" in data
+            formats_count = len(data.get("formats", [])) if has_formats else 0
+            logger.info(f"  → formats dostępne: {has_formats}, ilość: {formats_count}")
+            
+            if has_formats and formats_count > 0:
+                logger.info(f"  → Szukam stream URL w {formats_count} formatach")
                 stream_url = None
                 
                 # 1. Szukaj audio-only formatu (vcodec=none)
-                for fmt in data["formats"]:
+                for i, fmt in enumerate(data["formats"]):
                     if fmt.get("vcodec") == "none" and fmt.get("acodec") != "none":
                         stream_url = fmt.get("url")
-                        logger.debug(f"  ✓ Znalazłem audio-only format: {fmt.get('format_id')} ({fmt.get('ext')})")
+                        logger.info(f"  ✓ Format #{i}: audio-only ({fmt.get('ext')})")
                         break
                 
                 # 2. Jeśli brak audio-only, weź pierwszy format z URL
                 if not stream_url:
-                    for fmt in data["formats"]:
+                    for i, fmt in enumerate(data["formats"][:3]):  # Check first 3
                         if fmt.get("url"):
                             stream_url = fmt.get("url")
-                            logger.debug(f"  ✓ Użyłem format: {fmt.get('format_id')} ({fmt.get('ext')})")
+                            logger.info(f"  ✓ Format #{i}: {fmt.get('ext')} - {fmt.get('format_id')}")
                             break
                 
                 if stream_url:
                     filename = stream_url
-                    logger.info(f"  ✓ Ekstraktowany stream URL")
+                    logger.info(f"  ✓✓ Ekstraktowany stream URL!")
                 else:
-                    logger.warning(f"  ⚠️ Nie mogę znaleźć stream URL w formats, używam video page URL")
+                    logger.warning(f"  ❌ Nie znaleziono URL w formatach")
             else:
-                logger.debug(f"  ⚠️ Brak formats array w danych")
+                logger.warning(f"  ❌ Brak formats array lub pusta ({has_formats}/{formats_count})")
         
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")
