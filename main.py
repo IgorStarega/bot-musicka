@@ -62,13 +62,15 @@ async def play(interaction: discord.Interaction, search: str):
             urls = [e["url"] for e in info["entries"] if e]
             if guild_id not in bot.queue: bot.queue[guild_id] = []
             bot.queue[guild_id].extend(urls)
-            await interaction.followup.send(f"Dodano playlistę: **{info.get(\"title\")}** ({len(urls)} utworów)")
+            title = info.get('title', 'Nieznana playlista')
+            await interaction.followup.send(f"Dodano playlistę: **{title}** ({len(urls)} utworów)")
             if not interaction.guild.voice_client.is_playing(): await play_next(interaction)
         else:
             if interaction.guild.voice_client.is_playing():
                 if guild_id not in bot.queue: bot.queue[guild_id] = []
                 bot.queue[guild_id].append(info["url"])
-                await interaction.followup.send(f"Dodano do kolejki: **{info.get(\"title\")}**")
+                title = info.get('title', 'Nieznany utwór')
+                await interaction.followup.send(f"Dodano do kolejki: **{title}**")
             else:
                 player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
                 def after_playing(error):
@@ -95,7 +97,7 @@ async def stop(interaction: discord.Interaction):
 
 @bot.tree.command(name="radio", description="Odtwarza radio")
 @app_commands.describe(station="Wybierz stację")
-@app_commands.choices(station=[app_commands.Choice(name=f"{id}: {info[\"name\"]}", value=id) for id, info in config.RADIO_STATIONS.items()])
+@app_commands.choices(station=[app_commands.Choice(name=f"{id}: {info['name']}", value=id) for id, info in config.RADIO_STATIONS.items()])
 async def radio(interaction: discord.Interaction, station: app_commands.Choice[int]):
     if not await ensure_voice(interaction): return
     await interaction.response.defer()
@@ -106,6 +108,6 @@ async def radio(interaction: discord.Interaction, station: app_commands.Choice[i
     interaction.guild.voice_client.play(source)
     await interaction.followup.send(f"Radio: **{st_info[\"name\"]}**")
 
-if __name__ == \"__main__\":
-    if not config.DISCORD_TOKEN or config.DISCORD_TOKEN == \"YOUR_TOKEN_HERE\": print(\"BŁĄD: Brak tokenu!\")
+if __name__ == "__main__":
+    if not config.DISCORD_TOKEN or config.DISCORD_TOKEN == "YOUR_TOKEN_HERE": print("BŁĄD: Brak tokenu!")
     else: bot.run(config.DISCORD_TOKEN)"
