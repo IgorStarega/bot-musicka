@@ -121,31 +121,41 @@ class YTDLSource(discord.PCMVolumeTransformer):
         
         # Jeśli to już ytsearch: query (z get_info), to szukaj z extract_flat
         if url.startswith("ytsearch:"):
-            logger.info(f"🔍 YouTube search: {url[9:50]}...")
+            query = url[9:50]
+            logger.info(f"🔍 YouTube search: {query}...")
+            logger.debug(f"  → Format: audio-only (140/251/250/249)")
             search_opts = get_ydl_search_options()
             try:
                 data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(search_opts).extract_info(url, download=not stream))
+                logger.debug(f"  ✓ Wyszukiwanie zwróciło {len(data.get('entries', []))} wyników")
             except Exception as e:
-                logger.error(f"Search failed: {e}")
+                logger.error(f"❌ Search failed: {str(e)[:100]}")
                 raise Exception(f"Nie mogę znaleźć: {str(e)[:60]}")
         
         # YouTube video URL - normalnie
         elif is_youtube_url(url) and not is_youtube_playlist(url):
-            logger.info("🎬 YouTube single - pobieram...")
+            video_id = url.split('v=')[-1][:11] if 'v=' in url else url.split('/')[-1][:11]
+            logger.info(f"🎬 YouTube single [{video_id}] - pobieram...")
+            logger.debug(f"  → Format: audio-only (140/251/250/249)")
+            logger.debug(f"  → Player clients: web_embedded, tv_embedded, android")
             opts = get_ydl_options()
             try:
                 data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
+                logger.debug(f"  ✓ Pobrano: {data.get('title', 'N/A')[:50]}")
             except Exception as e1:
                 error_str = str(e1).lower()
+                error_code = "152-18" if "152" in error_str else "unknown"
                 # Jeśli niedostępny (152-18), spróbuj wyszukania
                 if any(x in error_str for x in ["152", "unavailable", "private", "removed", "deleted"]):
-                    logger.warning(f"Film niedostępny, szukam alternatywy...")
+                    logger.warning(f"⚠️ Film niedostępny (kod: {error_code}), szukam alternatywy...")
                     search_query = "ytsearch:popularna piosenka"
+                    logger.debug(f"  → Fallback search: {search_query}")
                     try:
                         search_opts = get_ydl_search_options()
                         data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(search_opts).extract_info(search_query, download=not stream))
+                        logger.info(f"  ✓ Fallback znalazł: {len(data.get('entries', []))} wyników")
                     except Exception as e2:
-                        logger.error(f"Fallback failed: {e2}")
+                        logger.error(f"❌ Fallback failed: {str(e2)[:100]}")
                         raise Exception("Film niedostępny")
                 else:
                     raise e1
@@ -153,39 +163,52 @@ class YTDLSource(discord.PCMVolumeTransformer):
         # Cokolwiek innego - treat jako search query z extract_flat
         else:
             logger.info(f"🔍 Search: {url[:50]}...")
+            logger.debug(f"  → Extract: flat mode (only URLs, no info fetching)")
             search_opts = get_ydl_search_options()
             try:
                 data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(search_opts).extract_info(url, download=not stream))
+                logger.debug(f"  ✓ Znaleziono {len(data.get('entries', []))} wyników")
             except Exception as e:
+                logger.error(f"❌ Search error: {str(e)[:100]}")
                 raise Exception(f"Nie mogę wczytać: {str(e)[:60]}")
         
         if not data:
+            logger.error("❌ Brak danych do odtwarzania")
             raise Exception("Brak danych do odtwarzania")
         
         # Jeśli to wyniki wyszukiwania (extract_flat), weź pierwszy i pobierz jego info
         if "entries" in data:
             entries = data.get("entries", [])
             if not entries:
+                logger.error("❌ Brak dostępnych utworów w wynikach")
                 raise Exception("Brak dostępnych utworów")
+            logger.debug(f"  → Przetwarzam pierwszy wpis z {len(entries)} dostępnych")
             first_entry = entries[0]
             
             # Jeśli to tylko URL z extract_flat, pobierz pełne info
             if isinstance(first_entry, dict) and "url" in first_entry and "title" not in first_entry:
-                logger.debug(f"Pobieranie info dla: {first_entry['url']}")
+                first_url = first_entry['url']
+                logger.info(f"  📥 Pobieranie full info dla: {first_url[:50]}...")
                 try:
                     opts = get_ydl_options()
-                    data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(first_entry['url'], download=not stream))
+                    data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(first_url, download=not stream))
+                    logger.debug(f"  ✓ Full info pobrane: {data.get('title', 'N/A')[:50]}")
                 except Exception as e:
-                    logger.warning(f"Nie mogę pobrać info: {e}, używam domyślnie")
+                    logger.warning(f"  ⚠️ Nie mogę pobrać full info: {str(e)[:80]}, używam URL bezpośrednio")
                     data = first_entry
             else:
+                logger.debug(f"  ✓ Mamy już info: {first_entry.get('title', 'N/A')[:50]}")
                 data = first_entry
         
         filename = data.get("url")
         if not filename:
+            logger.error("❌ Brak strumienia audio w danych")
             raise Exception("Brak strumienia audio")
         
-        logger.info(f"✅ Wczytano: {data.get('title', 'Utwór')[:50]}")
+        title = data.get('title', 'Utwór')[:60]
+        logger.info(f"✅ Wczytano: {title}")
+        logger.debug(f"  → Stream URL: {filename[:80]}...")
+        logger.debug(f"  → FFmpeg timeout: 30s, reconnect: 1, delay_max: 5s")
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
     @classmethod
