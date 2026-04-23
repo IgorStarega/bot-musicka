@@ -9,7 +9,7 @@ logger = logging.getLogger('MusicBot')
 
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
 FFMPEG_OPTIONS = {
-    "before_options": "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" -headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n\" -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000 -cookies config/cookies.txt",
+    "before_options": "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" -headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n\" -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
 }
 
@@ -49,7 +49,7 @@ def is_spotify_track(url):
 def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
     base_options = {
-        "format": "best",  # Najprostsza - najlepszy dostępny format
+        "format": "251/250/249/140/141/132/18/22/best",  # Audio-only z fallback na video
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
@@ -83,7 +83,7 @@ def get_ydl_options(for_playlist=False):
 def get_ydl_search_options():
     """Opcje dla YouTube search - pomija pobieranie info aby uniknąć 152-18 błędów."""
     return {
-        "format": "best",  # Najprostsza - najlepszy dostępny format
+        "format": "251/250/249/140/141/132/18/22/best",  # Audio-only z fallback
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
@@ -224,21 +224,54 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.debug(f"  Dostępne pola: {list(data.keys())}")
             raise Exception("Brak strumienia")
         
-        # Specjalny case: Jeśli mamy watch?v=... URL, pozwól FFmpeg to parsować
+        # DEBUG: Pokaż wszystkie dostępne pola
+        logger.info(f"  📋 Pola yt-dlp data:")
+        for key in ['url', 'direct_url', 'ext_url', 'http_headers', 'webpage_url']:
+            if key in data:
+                val = str(data[key])[:60]
+                logger.info(f"    - {key}: {val}")
+        
+        # Jeśli video page URL, szukaj rzeczywistego stream URL
         if "watch?v=" in filename or "youtu.be" in filename:
-            logger.info(f"  ℹ️ YouTube video page URL - FFmpeg go sparsuje")
-            logger.info(f"  URL: {filename}")
-            # FFmpeg ma wbudowany YouTube parser - używamy go bezpośrednio
-            # Nie wyciągamy stream URL ręcznie bo YouTube nie daje formatów
-            pass  # Użyj URL bezpośrednio
+            logger.info(f"  ⚠️ Video page URL: {filename[:60]}")
+            
+            # Szukaj alternatywnych pól ze stream URL
+            stream_url = None
+            
+            # 1. Spróbuj inne pola
+            for field in ['direct_url', 'ext_url', 'url_resolved']:
+                if field in data and data[field]:
+                    candidate = data[field]
+                    if "watch?v=" not in candidate:
+                        stream_url = candidate
+                        logger.info(f"  ✓ Znalazłem w {field}: {candidate[:60]}")
+                        break
+            
+            # 2. Jeśli nic, spróbuj formats (jeśli dostępne)
+            if not stream_url and data.get("formats"):
+                fmt = data["formats"][0]
+                stream_url = fmt.get("url")
+                logger.info(f"  ✓ Znalazłem w formats[0]: {stream_url[:60]}")
+            
+            if stream_url:
+                filename = stream_url
+            else:
+                logger.warning(f"  ❌ Nie znaleziono stream URL - będzie HTTP 429")
         else:
-            logger.info(f"  ✓ Stream URL ze strumienia")
-            logger.info(f"  URL: {filename}")
+            logger.info(f"  ✓ Stream URL: {filename[:60]}")
         
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")
         logger.debug(f"  → URL Type: {'Video Page' if 'watch?' in filename else 'Stream'}")
         logger.debug(f"  → Full URL: {filename}")
+        
+        # Safety check - jeśli wciąż video page URL, nie ma co grać
+        if "watch?v=" in filename or "youtu.be" in filename:
+            logger.error(f"❌ BŁĄD: Wciąż mamy video page URL! FFmpeg nie może to otworzyć!")
+            logger.error(f"  Przyczyna: yt-dlp nie zwrócił stream URL z żadnego pola")
+            logger.error(f"  Spróbuj zmienić format selection lub player_client")
+            raise Exception("Nie mogę wyciągnąć stream URL")
+        
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
     @classmethod
