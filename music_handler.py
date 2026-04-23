@@ -48,30 +48,31 @@ def is_spotify_track(url):
     return "/track/" in url
 
 def get_ydl_options(for_playlist=False):
-    """Generuje opcje yt-dlp - poprawione pod kątem blokad 2026."""
+    """Minimalistyczne opcje pod OAuth2 - bez śmieci w nagłówkach."""
     base_options = {
         "format": "bestaudio/best",
-        "username": "oauth2",
+        "username": "oauth2",  # Używamy tylko OAuth2
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch",
-        "socket_timeout": 120,
         "nocheckcertificate": True,
         "ignoreerrors": True if for_playlist else False,
         "extract_flat": False,
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        },
+        # USUNĘLIŚMY http_headers i User-Agent - OAuth2 sam o to zadba!
         "extractor_args": {
             "youtube": {
-                # Zmieniono na tv_embedded i android (omija błędy 152-18)
-                "player_client": ["tv_embedded", "android"],
-                # USUNIĘTO player_skip: ["js", "configs"] - to psuło stream URL!
+                # Dla OAuth2 zostawiamy tylko tv_embedded, to najstabilniejsza para
+                "player_client": ["tv_embedded"],
                 "skip_unavailable_videos": True
             }
         },
     }
+    
+    # Usuwamy też automatyczne ładowanie ciasteczek, jeśli używamy OAuth2
+    # Ciasteczka + OAuth2 to najczęstsza przyczyna błędu 400.
+    
+    return base_options
     
     # Dodaj ciasteczka jeśli istnieją
     if os.path.exists(COOKIES_PATH):
