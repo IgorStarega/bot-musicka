@@ -2,21 +2,18 @@ import discord
 import asyncio
 import yt_dlp
 import os
-import re
 import logging
 
 logger = logging.getLogger('MusicBot')
 
-# Ścieżka do ciasteczek
+# Całkowicie wyłączamy ścieżkę do ciasteczek, aby nie kusiło bota
 COOKIES_PATH = "config/cookies.txt"
 
-# Opcje dla FFmpeg - dodano obsługę ciasteczek i realny User-Agent
+# Opcje dla FFmpeg - USUNIĘTO ciasteczka, zostawiamy tylko stabilny streaming
 FFMPEG_OPTIONS = {
     "before_options": (
-        f"-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" "
-        f"-headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n\" "
-        f"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000 "
-        f"{f'-cookies {COOKIES_PATH}' if os.path.exists(COOKIES_PATH) else ''}"
+        "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+        "-timeout 30000000"
     ),
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
 }
@@ -29,29 +26,11 @@ RADIO_FFMPEG_OPTIONS = {
 def is_youtube_url(url):
     return "youtube.com" in url or "youtu.be" in url
 
-def is_youtube_playlist(url):
-    if not is_youtube_url(url):
-        return False
-    return "playlist?list=" in url or "/playlist?" in url
-
-def is_spotify_url(url):
-    return "spotify.com" in url
-
-def is_spotify_playlist(url):
-    if not is_spotify_url(url):
-        return False
-    return "/playlist/" in url
-
-def is_spotify_track(url):
-    if not is_spotify_url(url):
-        return False
-    return "/track/" in url
-
 def get_ydl_options(for_playlist=False):
-    """Minimalistyczne opcje pod OAuth2 - bez śmieci w nagłówkach."""
-    base_options = {
+    """Czyste opcje pod OAuth2 bez konfliktów."""
+    return {
         "format": "bestaudio/best",
-        "username": "oauth2",  # Używamy tylko OAuth2
+        "username": "oauth2",
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
@@ -59,26 +38,13 @@ def get_ydl_options(for_playlist=False):
         "nocheckcertificate": True,
         "ignoreerrors": True if for_playlist else False,
         "extract_flat": False,
-        # USUNĘLIŚMY http_headers i User-Agent - OAuth2 sam o to zadba!
         "extractor_args": {
             "youtube": {
-                # Dla OAuth2 zostawiamy tylko tv_embedded, to najstabilniejsza para
                 "player_client": ["tv_embedded"],
                 "skip_unavailable_videos": True
             }
         },
     }
-    
-    # Usuwamy też automatyczne ładowanie ciasteczek, jeśli używamy OAuth2
-    # Ciasteczka + OAuth2 to najczęstsza przyczyna błędu 400.
-    
-    return base_options
-    
-    # Dodaj ciasteczka jeśli istnieją
-    if os.path.exists(COOKIES_PATH):
-        base_options["cookiefile"] = COOKIES_PATH
-        
-    return base_options
 
 def get_ydl_search_options():
     opts = get_ydl_options(for_playlist=True)
@@ -96,59 +62,49 @@ class YTDLSource(discord.PCMVolumeTransformer):
     async def from_url(cls, url, *, loop=None, stream=True):
         loop = loop or asyncio.get_event_loop()
         
-        # Jeśli to search query
-        if url.startswith("ytsearch:"):
-            search_opts = get_ydl_search_options()
-            data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(search_opts).extract_info(url, download=not stream))
-        
-        # Jeśli to URL YouTube
-        elif is_youtube_url(url) and not is_youtube_playlist(url):
-            opts = get_ydl_options()
-            try:
-                data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
-            except Exception as e:
-                logger.warning(f"⚠️ Problem z YouTube: {e}, szukam alternatywy...")
-                search_opts = get_ydl_search_options()
-                data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(search_opts).extract_info("ytsearch:popularna piosenka", download=not stream))
-        
+        # Wybór opcji
+        if url.startswith("ytsearch:") or not is_youtube_url(url):
+            opts = get_ydl_search_options()
         else:
-            search_opts = get_ydl_search_options()
-            data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(search_opts).extract_info(url, download=not stream))
+            opts = get_ydl_options()
+
+        # Pobieranie danych
+        try:
+            ydl = yt_dlp.YoutubeDL(opts)
+            data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
+        except Exception as e:
+            logger.error(f"❌ Błąd yt-dlp: {e}")
+            return None
+
+        if data is None:
+            return None
 
         if "entries" in data:
+            if not data["entries"]:
+                return None
             data = data["entries"][0]
-
-        # KLUCZOWA POPRAWKA: Jeśli brakuje formatów, spróbuj pobrać full info
-        if not data.get("formats") and "url" in data:
-            logger.info("📥 Brak formatów w cache, pobieram full info...")
-            opts = get_ydl_options()
-            data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(data["url"], download=not stream))
 
         # Pobierz URL do odtworzenia
         filename = data.get("url")
-        
-        # Jeśli yt-dlp zwrócił stronę zamiast streamu, FFmpeg spróbuje to sparsować sam (dzięki ciasteczkom)
-        logger.info(f"✅ Odtwarzanie: {data.get('title')}")
+        if not filename:
+            logger.error("❌ Nie znaleziono bezpośredniego linku do streamu.")
+            return None
+            
+        logger.info(f"✅ Przygotowano do odtwarzania: {data.get('title')}")
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
     @classmethod
     async def get_info(cls, url, *, loop=None):
         loop = loop or asyncio.get_event_loop()
         
-        if is_spotify_url(url):
-            return {"title": "Spotify Content", "entries": [{"url": "ytsearch:popular music", "title": "Spotify Track"}]}
-        
-        if is_youtube_playlist(url):
-            opts = get_ydl_options(for_playlist=True)
-            opts["extract_flat"] = "in_playlist"
+        # Szybka obsługa YouTube
+        if is_youtube_url(url) and "list=" not in url:
+             return {"title": "YouTube", "entries": [{"url": url, "title": "Utwór"}]}
+
+        opts = get_ydl_search_options()
+        try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
-            return {"title": data.get("title", "Playlista"), "entries": data.get("entries", [])}
-        
-        if is_youtube_url(url):
-            return {"title": "YouTube", "entries": [{"url": url, "title": "Utwór"}]}
-        
-        search_opts = get_ydl_search_options()
-        with yt_dlp.YoutubeDL(search_opts) as ydl:
-            data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
-        return data
+            return data
+        except:
+            return None
