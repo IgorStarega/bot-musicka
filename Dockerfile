@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
+# Force upgrade yt-dlp to latest version during build
+RUN pip install --no-cache-dir --upgrade yt-dlp
+
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 
