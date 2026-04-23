@@ -27,6 +27,13 @@ def get_ydl_options():
         "extract_flat": False,
         "force_generic_extractor": False,
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "extractor_args": {
+            "youtubetab": ["skip=authcheck"],
+            "youtube": {
+                "player_client": ["android", "ios", "web"],
+                "player_skip": ["webpage", "configs"]
+            }
+        },
     }
     
     # Ścieżka do ciasteczek - szukaj w katalogu config (mapowany przez docker-compose)
@@ -57,10 +64,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
             with yt_dlp.YoutubeDL(get_ydl_options()) as ydl:
                 try:
                     # Pobieramy tylko metadane ze Spotify (tytuł i wykonawca)
-                    info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False, process=False))
+                    info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False, process=True))
                     if info:
-                        # Jeśli to playlista Spotify, bierzemy pierwszy utwór lub szukamy po tytule
-                        search_term = f"{info.get('title')} {info.get('artist', '')}"
+                        # Sprawdzamy czy to playlista czy pojedynczy utwor
+                        track_title = info.get('title')
+                        track_artist = info.get('artist', '') or info.get('uploader', '')
+                        search_term = f"{track_title} {track_artist}".strip()
                         url = f"ytsearch:{search_term}"
                         print(f"Konwersja Spotify -> YouTube: {search_term}")
                 except Exception as e:
