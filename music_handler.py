@@ -52,11 +52,22 @@ class YTDLSource(discord.PCMVolumeTransformer):
     async def from_url(cls, url, *, loop=None, stream=True):
         loop = loop or asyncio.get_event_loop()
         
+        # Specjalna obsługa Spotify - konwersja linku na wyszukiwanie w YouTube
         if "spotify.com" in url:
-            url = url.split("?")[0]
+            with yt_dlp.YoutubeDL(get_ydl_options()) as ydl:
+                try:
+                    # Pobieramy tylko metadane ze Spotify (tytuł i wykonawca)
+                    info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False, process=False))
+                    if info:
+                        # Jeśli to playlista Spotify, bierzemy pierwszy utwór lub szukamy po tytule
+                        search_term = f"{info.get('title')} {info.get('artist', '')}"
+                        url = f"ytsearch:{search_term}"
+                        print(f"Konwersja Spotify -> YouTube: {search_term}")
+                except Exception as e:
+                    print(f"Błąd ekstrakcji Spotify: {e}, próbuję linku bezpośrednio...")
             
         with yt_dlp.YoutubeDL(get_ydl_options()) as ydl:
-            # Próba pobrania bezpośredniego info
+            # Próba pobrania bezpośredniego info (lub wyszukiwania po konwersji)
             try:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
             except Exception as e:
@@ -83,5 +94,27 @@ class YTDLSource(discord.PCMVolumeTransformer):
     @classmethod
     async def get_info(cls, url, *, loop=None):
         loop = loop or asyncio.get_event_loop()
+        
+        # Obsługa playlist Spotify
+        if "spotify.com" in url:
+            # Włączamy pobieranie informacji o wszystkich elementach listy
+            opts = get_ydl_options()
+            opts["extract_flat"] = "in_playlist"
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                try:
+                    data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                    if data and "entries" in data:
+                        # Przetwarzamy każdy element na zapytanie wyszukiwania YouTube
+                        # To ułatwia automatyczne odtwarzanie kolejnych utworów z listy
+                        for entry in data["entries"]:
+                            if entry:
+                                # Konstruujemy frazę wyszukiwania
+                                artist = entry.get("artist") or entry.get("uploader") or ""
+                                title = entry.get("title")
+                                entry["url"] = f"ytsearch:{title} {artist}".strip()
+                    return data
+                except Exception as e:
+                    print(f"Błąd pobierania info Spotify: {e}")
+        
         with yt_dlp.YoutubeDL(get_ydl_options()) as ydl:
             return await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
