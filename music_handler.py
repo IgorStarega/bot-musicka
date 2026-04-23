@@ -8,8 +8,22 @@ import logging
 logger = logging.getLogger('MusicBot')
 
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
+_FFMPEG_BEFORE_BASE = (
+    '-user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" '
+    '-headers "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\n" '
+    '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000'
+)
+
+def get_ffmpeg_options():
+    """Zwraca opcje FFmpeg z reconnect i user-agent."""
+    return {
+        "before_options": _FFMPEG_BEFORE_BASE,
+        "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
+    }
+
+# Stały obiekt dla kompatybilności wstecznej (bez cookies)
 FFMPEG_OPTIONS = {
-    "before_options": "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" -headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n\" -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
+    "before_options": _FFMPEG_BEFORE_BASE,
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
 }
 
@@ -49,14 +63,14 @@ def is_spotify_track(url):
 def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
     base_options = {
-        "format": "251/250/249/140/141/132/18/22/best",  # Audio-only z fallback na video
+        "format": "140/251/250/249/141/132/18/22/best",  # m4a (iOS) pierwszeństwo, fallback na video
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch",
         "socket_timeout": 120,
-        "sleep_interval": 2,
-        "sleep_interval_requests": 2,
+        "sleep_interval": 1,
+        "sleep_interval_requests": 1,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
         "ignoreerrors": True if for_playlist else False,
@@ -72,10 +86,9 @@ def get_ydl_options(for_playlist=False):
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "extractor_args": {
             "youtube": {
-                # tv_embedded i android omijają blokady 152-18 i zwracają prawdziwe stream URL
-                # UWAGA: player_skip: ["js", "configs"] celowo usunięte - pomijało JS player
-                # co uniemożliwiało odszyfrowanie stream URL → formats=0
-                "player_client": ["tv_embedded", "android"],
+                # ios client omija wymaganie logowania (bot-detection) i zwraca prawdziwe stream URL
+                # android jako fallback - kombinacja ios+android pokrywa większość przypadków
+                "player_client": ["ios", "android"],
                 "skip_unavailable_videos": True
             }
         },
@@ -88,14 +101,14 @@ def get_ydl_options(for_playlist=False):
 def get_ydl_search_options():
     """Opcje dla YouTube search - pobiera tylko listę wyników (bez pełnego info)."""
     opts = {
-        "format": "251/250/249/140/141/132/18/22/best",  # Audio-only z fallback
+        "format": "140/251/250/249/141/132/18/22/best",  # m4a (iOS) pierwszeństwo
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch",
         "socket_timeout": 120,
-        "sleep_interval": 2,
-        "sleep_interval_requests": 2,
+        "sleep_interval": 1,
+        "sleep_interval_requests": 1,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
         "logtostderr": False,
@@ -109,7 +122,8 @@ def get_ydl_search_options():
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "extractor_args": {
             "youtube": {
-                "player_client": ["tv_embedded", "android"],
+                # ios client omija wymaganie logowania (bot-detection)
+                "player_client": ["ios", "android"],
                 "skip_unavailable_videos": True
             }
         },
@@ -162,9 +176,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
             except Exception as e1:
                 error_str = str(e1).lower()
                 error_code = "152-18" if "152" in error_str else "unknown"
-                # Jeśli niedostępny (152-18), spróbuj wyszukania
-                if any(x in error_str for x in ["152", "unavailable", "private", "removed", "deleted"]):
-                    logger.warning(f"⚠️ Film niedostępny (kod: {error_code}), szukam alternatywy...")
+                # Jeśli niedostępny, wymaga logowania (bot-detection) lub usunięty, szukaj alternatywy
+                if any(x in error_str for x in ["152", "unavailable", "private", "removed", "deleted", "sign in", "not a bot", "login required"]):
+                    logger.warning(f"⚠️ Film niedostępny/zablokowany (kod: {error_code}), szukam alternatywy...")
                     search_query = "ytsearch:popularna piosenka"
                     logger.debug(f"  → Fallback search: {search_query}")
                     try:
@@ -246,7 +260,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")
         
-        return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
+        return cls(discord.FFmpegPCMAudio(filename, **get_ffmpeg_options()), data=data)
 
     @classmethod
     async def get_info(cls, url, *, loop=None):
