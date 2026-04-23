@@ -21,7 +21,6 @@ YDL_OPTIONS = {
     'ignoreerrors': False,
     'logtostderr': False,
     'no_color': True,
-    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
 class YTDLSource(discord.PCMVolumeTransformer):

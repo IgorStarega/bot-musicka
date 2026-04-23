@@ -17,6 +17,7 @@
 12. **[ZAKOŃCZONE]** Poprawka błędu w składni GitHub Actions (referencja steps)
 13. **[ZAKOŃCZONE]** Analiza kodu i poprawki stabilności (stop przed play, timeouty FFmpeg)
 14. **[ZAKOŃCZONE]** Automatyczne dołączanie/przenoszenie bota przy komendach odtwarzania
+15. **[ZAKOŃCZONE]** Rozwijana lista (Choices) dla komendy /radio
 
 ### Dane bota:
 - **Wersja:** 1.0.0

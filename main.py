@@ -82,25 +82,28 @@ async def stop(interaction: discord.Interaction):
         await interaction.response.send_message("Nic nie jest teraz odtwarzane.")
 
 @bot.tree.command(name="radio", description="Odtwarza wybraną stację radiową")
-async def radio(interaction: discord.Interaction, id: int):
-    if id not in config.RADIO_STATIONS:
-        return await interaction.response.send_message("Niepoprawne ID stacji! Użyj 1-11.")
-    
+@app_commands.describe(station="Wybierz stację radiową z listy")
+@app_commands.choices(station=[
+    app_commands.Choice(name=f"{id}: {info['name']}", value=id)
+    for id, info in config.RADIO_STATIONS.items()
+])
+async def radio(interaction: discord.Interaction, station: app_commands.Choice[int]):
+    id = station.value
     if not await ensure_voice(interaction):
         return
 
     await interaction.response.defer()
-    station = config.RADIO_STATIONS[id]
+    station_info = config.RADIO_STATIONS[id]
     
     if interaction.guild.voice_client.is_playing():
         interaction.guild.voice_client.stop()
 
-    source = discord.FFmpegPCMAudio(station["url"], **{
+    source = discord.FFmpegPCMAudio(station_info["url"], **{
         'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000',
         'options': '-vn'
     })
     interaction.guild.voice_client.play(source)
-    await interaction.followup.send(f'Rozpoczęto nadawanie: **{station["name"]}**')
+    await interaction.followup.send(f'Rozpoczęto nadawanie: **{station_info["name"]}**')
 
 @bot.tree.command(name="test", description="Testuje wszystkie funkcje bota")
 async def test(interaction: discord.Interaction):
