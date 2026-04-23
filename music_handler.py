@@ -9,8 +9,14 @@ logger = logging.getLogger('MusicBot')
 
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
 FFMPEG_OPTIONS = {
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000",
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
+}
+
+# Opcje dla Radio - bardziej konserwatywne
+RADIO_FFMPEG_OPTIONS = {
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
+    "options": "-vn",
 }
 
 def is_youtube_url(url):

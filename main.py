@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import config
-from music_handler import YTDLSource, is_youtube_url, is_youtube_playlist, is_spotify_url, is_spotify_playlist, is_spotify_track
+from music_handler import YTDLSource, is_youtube_url, is_youtube_playlist, is_spotify_url, is_spotify_playlist, is_spotify_track, RADIO_FFMPEG_OPTIONS
 import asyncio
 
 import logging
@@ -125,7 +125,7 @@ async def play_next(interaction: discord.Interaction):
                 except Exception as e:
                     logger.error(f"Błąd w after_radio: {e}")
             
-            source = discord.FFmpegPCMAudio(st_info["url"], **{"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000", "options": "-vn"})
+            source = discord.FFmpegPCMAudio(st_info["url"], **RADIO_FFMPEG_OPTIONS)
             interaction.guild.voice_client.play(source, after=after_radio)
             await update_status(f"Radio: {st_info['name']}")
             await interaction.channel.send(f"🎙️ **{st_info['name']}** - nadawanie...")
@@ -315,7 +315,7 @@ async def radio(interaction: discord.Interaction, station: int):
         if interaction.guild_id in bot.queue:
             bot.queue[interaction.guild_id] = []
 
-        source = discord.FFmpegPCMAudio(st_info["url"], **{"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000", "options": "-vn"})
+        source = discord.FFmpegPCMAudio(st_info["url"], **RADIO_FFMPEG_OPTIONS)
         
         def after_radio(error):
             if error: logger.error(f"Błąd radia: {error}")
