@@ -9,7 +9,7 @@ logger = logging.getLogger('MusicBot')
 
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
 FFMPEG_OPTIONS = {
-    "before_options": "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" -headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n\" -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
+    "before_options": "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" -headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n\" -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000 -cookies config/cookies.txt",
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
 }
 
@@ -224,43 +224,16 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.debug(f"  Dostępne pola: {list(data.keys())}")
             raise Exception("Brak strumienia")
         
-        # Sprawdzenie czy to video page URL zamiast stream URL
+        # Specjalny case: Jeśli mamy watch?v=... URL, pozwól FFmpeg to parsować
         if "watch?v=" in filename or "youtu.be" in filename:
-            logger.warning(f"  ⚠️ Otrzymano video page URL zamiast stream URL!")
-            logger.warning(f"  URL: {filename}")
-            
-            # Wyciągnij RZECZYWISTY stream URL z formats array
-            logger.info(f"  📋 Sprawdzam formats array...")
-            has_formats = "formats" in data
-            formats_count = len(data.get("formats", [])) if has_formats else 0
-            logger.info(f"  → formats dostępne: {has_formats}, ilość: {formats_count}")
-            
-            if has_formats and formats_count > 0:
-                logger.info(f"  → Szukam stream URL w {formats_count} formatach")
-                stream_url = None
-                
-                # 1. Szukaj audio-only formatu (vcodec=none)
-                for i, fmt in enumerate(data["formats"]):
-                    if fmt.get("vcodec") == "none" and fmt.get("acodec") != "none":
-                        stream_url = fmt.get("url")
-                        logger.info(f"  ✓ Format #{i}: audio-only ({fmt.get('ext')})")
-                        break
-                
-                # 2. Jeśli brak audio-only, weź pierwszy format z URL
-                if not stream_url:
-                    for i, fmt in enumerate(data["formats"][:3]):  # Check first 3
-                        if fmt.get("url"):
-                            stream_url = fmt.get("url")
-                            logger.info(f"  ✓ Format #{i}: {fmt.get('ext')} - {fmt.get('format_id')}")
-                            break
-                
-                if stream_url:
-                    filename = stream_url
-                    logger.info(f"  ✓✓ Ekstraktowany stream URL!")
-                else:
-                    logger.warning(f"  ❌ Nie znaleziono URL w formatach")
-            else:
-                logger.warning(f"  ❌ Brak formats array lub pusta ({has_formats}/{formats_count})")
+            logger.info(f"  ℹ️ YouTube video page URL - FFmpeg go sparsuje")
+            logger.info(f"  URL: {filename}")
+            # FFmpeg ma wbudowany YouTube parser - używamy go bezpośrednio
+            # Nie wyciągamy stream URL ręcznie bo YouTube nie daje formatów
+            pass  # Użyj URL bezpośrednio
+        else:
+            logger.info(f"  ✓ Stream URL ze strumienia")
+            logger.info(f"  URL: {filename}")
         
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")

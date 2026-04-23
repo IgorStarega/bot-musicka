@@ -119,9 +119,10 @@ bot-musicka/
 ## 🎵 Specifiki Bot-Musicka
 
 ### Strategie YouTube
-- **Client priority:** `["web_embedded", "tv_embedded", "android"]`
+- **Client priority:** `["web_embedded"]` (single stable client)
 - **Fallback:** Jeśli 152-18 (unavailable), szukaj na YouTube
 - **Playlist:** `ignoreerrors: True` - pomijaj niedostępne wpisy
+- **HTTP 429:** FFmpeg parser + `-cookies config/cookies.txt` (zobacz YOUTUBE_429_FIX.md)
 
 ### Spotify Handling
 - **Track:** → Szukaj na YouTube (bez DRM)
@@ -296,6 +297,7 @@ Gdy edytujesz funkcjonalność:
 - ✅ Spotify DRM → Szukaj na YouTube bez pobierania metadanych
 - ✅ FFmpeg crash → Callback handlers + error logging
 - ✅ Autocomplete error → Użyj keyword syntax `@app_commands.autocomplete(param=func)`
+- ✅ HTTP 429 "Too Many Requests" → FFmpeg YouTube parser + cookies.txt (YOUTUBE_429_FIX.md)
 
 ### Czego **NIGDY** nie robić
 - ❌ Pobierać metadane Spotify (DRM)
@@ -303,6 +305,7 @@ Gdy edytujesz funkcjonalność:
 - ❌ Rzucać błąd zamiast fallback (zawsze mieć plan B)
 - ❌ Print zamiast logger (logging daje historię)
 - ❌ Testować YouTube bezpośrednio (zawsze fallback)
+- ❌ Wyciągać stream URL ręcznie z format array (YouTube blokuje dostęp)
 
 ---
 
