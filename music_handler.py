@@ -199,15 +199,21 @@ class YTDLSource(discord.PCMVolumeTransformer):
             if isinstance(first_entry, dict) and "url" in first_entry and "title" not in first_entry:
                 first_url = first_entry['url']
                 logger.info(f"  📥 Pobieranie full info dla: {first_url[:50]}...")
+                logger.debug(f"  → Potrzebny formats array aby wyciągnąć stream URL")
                 try:
                     opts = get_ydl_options()
                     data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(first_url, download=not stream))
                     logger.debug(f"  ✓ Full info pobrane: {data.get('title', 'N/A')[:50]}")
+                    logger.debug(f"  → Dostępne formaty: {len(data.get('formats', []))} szt.")
                 except Exception as e:
-                    logger.warning(f"  ⚠️ Nie mogę pobrać full info: {str(e)[:80]}, używam URL bezpośrednio")
+                    error_str = str(e).lower()
+                    if "429" in error_str or "too many" in error_str:
+                        logger.warning(f"  ⚠️ HTTP 429 - YouTube blokuje na IP level")
+                    logger.warning(f"  ⚠️ Nie mogę pobrać full info: {str(e)[:80]}")
                     data = first_entry
             else:
                 logger.debug(f"  ✓ Mamy już info: {first_entry.get('title', 'N/A')[:50]}")
+                logger.debug(f"  → Dostępne formaty: {len(first_entry.get('formats', []))} szt.")
                 data = first_entry
         
         filename = data.get("url")
@@ -216,16 +222,38 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.debug(f"  Dostępne pola: {list(data.keys())}")
             raise Exception("Brak strumienia")
         
-        # Sprawdź czy to video page URL czy stream URL
+        # Sprawdzenie czy to video page URL zamiast stream URL
         if "watch?v=" in filename or "youtu.be" in filename:
             logger.warning(f"  ⚠️ Otrzymano video page URL zamiast stream URL!")
             logger.warning(f"  URL: {filename}")
-            # Spróbuj wyciągnąć stream_url jeśli istnieje
-            if "url" in data:
-                stream_url = data.get("url")
-                if stream_url and "watch" not in stream_url:
+            
+            # Wyciągnij RZECZYWISTY stream URL z formats array
+            if "formats" in data and data["formats"]:
+                logger.debug(f"  → Szukam stream URL w formats ({len(data['formats'])} formatów)")
+                stream_url = None
+                
+                # 1. Szukaj audio-only formatu (vcodec=none)
+                for fmt in data["formats"]:
+                    if fmt.get("vcodec") == "none" and fmt.get("acodec") != "none":
+                        stream_url = fmt.get("url")
+                        logger.debug(f"  ✓ Znalazłem audio-only format: {fmt.get('format_id')} ({fmt.get('ext')})")
+                        break
+                
+                # 2. Jeśli brak audio-only, weź pierwszy format z URL
+                if not stream_url:
+                    for fmt in data["formats"]:
+                        if fmt.get("url"):
+                            stream_url = fmt.get("url")
+                            logger.debug(f"  ✓ Użyłem format: {fmt.get('format_id')} ({fmt.get('ext')})")
+                            break
+                
+                if stream_url:
                     filename = stream_url
-                    logger.info(f"  ✓ Użyłem stream_url: {filename[:80]}...")
+                    logger.info(f"  ✓ Ekstraktowany stream URL")
+                else:
+                    logger.warning(f"  ⚠️ Nie mogę znaleźć stream URL w formats, używam video page URL")
+            else:
+                logger.debug(f"  ⚠️ Brak formats array w danych")
         
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")
