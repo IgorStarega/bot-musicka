@@ -52,9 +52,15 @@ async def play_next(interaction: discord.Interaction):
 
     source_url = bot.queue[guild_id].pop(0)
     try:
-        player = await YTDLSource.from_url(source_url, loop=bot.loop, stream=True)
+        # Próba uzyskania info z obsługą błędów
+        try:
+            player = await YTDLSource.from_url(source_url, loop=bot.loop, stream=True)
+        except Exception as e:
+            await interaction.channel.send(f"⚠️ Pominąłem utwór z powodu błędu: `{str(e)[:100]}`")
+            return await play_next(interaction)
+
         def after_playing(error):
-            if error: print(f"Błąd: {error}")
+            if error: print(f"Błąd FFmpeg: {error}")
             asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
         
         if interaction.guild.voice_client:

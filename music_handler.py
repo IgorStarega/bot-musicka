@@ -1,6 +1,7 @@
 import discord
 import asyncio
 import yt_dlp
+import os
 
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
 FFMPEG_OPTIONS = {
@@ -8,24 +9,37 @@ FFMPEG_OPTIONS = {
     "options": "-vn -dn -sn -ignore_unknown -probesize 32 -analyzeduration 0",
 }
 
-# Opcje dla yt-dlp - zoptymalizowane pod kątem omijania blokad i dostępności formatów
-YDL_OPTIONS = {
-    "format": "bestaudio/best",
-    "noplaylist": False,
-    "quiet": True,
-    "no_warnings": True,
-    "default_search": "ytsearch",
-    "source_address": "0.0.0.0",
-    "cookiefile": "cookies.txt",
-    "nocheckcertificate": True,
-    "ignoreerrors": True,
-    "logtostderr": False,
-    "no_color": True,
-    "youtube_include_dash_manifest": True,
-    "youtube_include_hls_manifest": True,
-    "extract_flat": False,
-    "force_generic_extractor": False,
-}
+def get_ydl_options():
+    """Generuje opcje yt-dlp z dynamicznym sprawdzaniem cookies."""
+    base_options = {
+        "format": "bestaudio/best",
+        "noplaylist": False,
+        "quiet": True,
+        "no_warnings": True,
+        "default_search": "ytsearch",
+        "source_address": "0.0.0.0",
+        "nocheckcertificate": True,
+        "ignoreerrors": True,
+        "logtostderr": False,
+        "no_color": True,
+        "youtube_include_dash_manifest": True,
+        "youtube_include_hls_manifest": True,
+        "extract_flat": False,
+        "force_generic_extractor": False,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    }
+    
+    # Ścieżka do ciasteczek (podstawowa i dla Dockera)
+    cookie_paths = ["cookies.txt", "/app/cookies.txt", "/app/config/cookies.txt"]
+    for path in cookie_paths:
+        if os.path.exists(path):
+            print(f"Znaleziono plik cookies: {path}")
+            base_options["cookiefile"] = path
+            break
+    else:
+        print("OSTRZEŻENIE: Brak pliku cookies.txt! YouTube może blokować odtwarzanie.")
+        
+    return base_options
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -41,7 +55,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         if "spotify.com" in url:
             url = url.split("?")[0]
             
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+        with yt_dlp.YoutubeDL(get_ydl_options()) as ydl:
             # Próba pobrania bezpośredniego info
             try:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
@@ -69,5 +83,5 @@ class YTDLSource(discord.PCMVolumeTransformer):
     @classmethod
     async def get_info(cls, url, *, loop=None):
         loop = loop or asyncio.get_event_loop()
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+        with yt_dlp.YoutubeDL(get_ydl_options()) as ydl:
             return await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
