@@ -49,25 +49,28 @@ def is_spotify_track(url):
 def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
     base_options = {
-        "format": "140/251/250/249",  # Audio only: AAC 128k / Opus - unika HTTP 429
+        "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch",
-        "socket_timeout": 30,
+        "socket_timeout": 60,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
         "ignoreerrors": True if for_playlist else False,
         "logtostderr": False,
         "no_color": True,
-        "youtube_include_dash_manifest": True,
+        "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
         "extract_flat": False,
         "force_generic_extractor": False,
-        "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0",
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "extractor_args": {
             "youtube": {
-                "player_client": ["web_embedded", "tv_embedded", "android"],
+                "player_client": ["web_embedded"],
                 "player_skip": ["js", "configs"],
                 "skip_unavailable_videos": True
             }
@@ -78,12 +81,12 @@ def get_ydl_options(for_playlist=False):
 def get_ydl_search_options():
     """Opcje dla YouTube search - pomija pobieranie info aby uniknąć 152-18 błędów."""
     return {
-        "format": "140/251/250/249",  # Audio only: AAC 128k / Opus - unika HTTP 429
+        "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch",
-        "socket_timeout": 30,
+        "socket_timeout": 60,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
         "logtostderr": False,
@@ -91,10 +94,13 @@ def get_ydl_search_options():
         "extract_flat": "in_playlist",  # Tylko URLs, bez info - uniknie 152-18!
         "ignoreerrors": True,  # Pomijaj niedostępne
         "skip_unavailable_videos": True,
-        "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0",
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "extractor_args": {
             "youtube": {
-                "player_client": ["web_embedded", "tv_embedded", "android"],
+                "player_client": ["web_embedded"],
                 "player_skip": ["js", "configs"],
                 "skip_unavailable_videos": True
             }
