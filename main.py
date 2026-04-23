@@ -195,17 +195,17 @@ async def play(interaction: discord.Interaction, search: str):
     try:
         await interaction.followup.send(f"⏳ Pobieram... ({url_type})")
         info = await YTDLSource.get_info(search, loop=bot.loop)
-        logger.debug(f\"  📥 Otrzymano info: {len(info.get('entries', []))} wpisów\")
+        logger.debug(f"  📥 Otrzymano info: {len(info.get('entries', []))} wpisów")
         
         if not info or not info.get("entries"):
             await interaction.followup.send(f"❌ Brak utworów ({url_type})")
-            logger.warning(f\"  ⚠️ Brak: {search[:50]}\")
+            logger.warning(f"  ⚠️ Brak: {search[:50]}")
             return
         
         urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
         if not urls:
             await interaction.followup.send(f"❌ Brak dostępnych utworów")
-            logger.warning(\"  ⚠️ Brak URL w wpisach\")
+            logger.warning("  ⚠️ Brak URL w wpisach")
             return
         
         # PLAYLISTA (>1 utwór)
