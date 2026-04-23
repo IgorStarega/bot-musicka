@@ -1,23 +1,41 @@
 import os
+import requests
 from dotenv import load_dotenv
 
 # Załaduj zmienne z pliku .env
 load_dotenv()
 
-# Lista stacji radiowych
-RADIO_STATIONS = {
-    1: {"name": "Radioparty - Kanał Główny", "url": "https://s2.radioparty.pl:7000/stream?nocache=5782"},
-    2: {"name": "Radioparty - DJ Mixes", "url": "https://radioparty.pl:8888/djmixes"},
-    3: {"name": "RMF MAXX", "url": "http://31.192.216.10:8000/rmf_maxxx"},
-    4: {"name": "ESKA Siedlce", "url": "https://ic2.smcdn.pl/2060-1.mp3"},
-    5: {"name": "Radio ZET", "url": "https://n-11-23.dcs.redcdn.pl/sc/o2/Eurozet/live/audio.livx?audio=5"},
-    6: {"name": "Radio Zet Dance", "url": "https://zt05.cdn.eurozet.pl/ZETDAN.mp3?redirected=05/"},
-    7: {"name": "Radio Zet Party", "url": "http://zt04.cdn.eurozet.pl/ZETPAR.mp3"},
-    8: {"name": "Open FM - Vixa", "url": "https://stream-cdn-1.open.fm/OFM207/ngrp:standard/playlist.m3u8"},
-    9: {"name": "Open FM - Dance", "url": "https://stream-cdn-1.open.fm/OFM160/ngrp:standard/playlist.m3u8"},
-    10: {"name": "Open FM - Do Auta", "url": "https://stream-cdn-1.open.fm/OFM163/ngrp:standard/playlist.m3u8"},
-    11: {"name": "Open FM - 500 Party Hits", "url": "https://stream-cdn-1.open.fm/OFM169/ngrp:standard/playlist.m3u8"},
-}
+def get_radio_stations():
+    """Pobiera stacje radiowe z API i usuwa te bez URL."""
+    try:
+        url_api = "https://radyjko.mordorek.dev/api/stations"
+        response = requests.get(url_api, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        stations = {}
+        for item in data:
+            # Pomiń stacje OpenFM bez bezpośredniego URL (wymagałyby dodatkowej logiki)
+            # Jeśli URL jest None, próbujemy zbudować go dla OpenFM
+            url = item.get("url")
+            if not url and item.get("isOpenFM") == 1:
+                url = f"https://stream-cdn-1.open.fm/OFM{item['openFmId']}/ngrp:standard/playlist.m3u8"
+            
+            if url:
+                stations[item["id"]] = {
+                    "name": item["name"],
+                    "url": url.strip()
+                }
+        return stations
+    except Exception as e:
+        print(f"Błąd API Radiowego: {e}")
+        return {
+            130: {"name": "RMF FM", "url": "https://rs6-krk2.rmfstream.pl/rmf_fm"},
+            170: {"name": "Radio ZET", "url": "https://27943.live.streamtheworld.com/RADIO_ZETAAC.aac?dist=zet"}
+        }
+
+# Lista stacji radiowych pobierana dynamicznie
+RADIO_STATIONS = get_radio_stations()
 
 # Konfiguracja bota pobierana z .env
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")

@@ -113,14 +113,33 @@ async def stop(interaction: discord.Interaction):
         await update_status(idle=True)
         await interaction.response.send_message("Zatrzymano i wyczyszczono kolejkę.")
 
+@bot.tree.command(name="list_radio", description="Wyświetla listę dostępnych stacji radiowych")
+async def list_radio(interaction: discord.Interaction):
+    stations = config.RADIO_STATIONS
+    if not stations:
+        return await interaction.response.send_message("Brak dostępnych stacji.")
+    
+    text = "**Dostępne stacje radiowe (wpisz ID w /radio):**\n\n"
+    for id, info in stations.items():
+        text += f"`{id}`: **{info['name']}**\n"
+    
+    # Discord ma limit 2000 znaków
+    if len(text) > 2000:
+        await interaction.response.send_message(text[:1990] + "...")
+    else:
+        await interaction.response.send_message(text)
+
 @bot.tree.command(name="radio", description="Odtwarza radio")
 @app_commands.describe(station="Wybierz stację")
-@app_commands.choices(station=[app_commands.Choice(name=f"{id}: {info['name']}", value=id) for id, info in config.RADIO_STATIONS.items()])
-async def radio(interaction: discord.Interaction, station: app_commands.Choice[int]):
+async def radio(interaction: discord.Interaction, station: int):
     if not await ensure_voice(interaction): return
     await interaction.response.defer()
-    st_id = station.value
-    st_info = config.RADIO_STATIONS[st_id]
+    
+    if station not in config.RADIO_STATIONS:
+        await interaction.followup.send("Niepoprawne ID stacji!")
+        return
+        
+    st_info = config.RADIO_STATIONS[station]
     if interaction.guild.voice_client.is_playing(): interaction.guild.voice_client.stop()
     source = discord.FFmpegPCMAudio(st_info["url"], **{"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000", "options": "-vn"})
     interaction.guild.voice_client.play(source)

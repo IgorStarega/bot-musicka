@@ -8,7 +8,7 @@ FFMPEG_OPTIONS = {
     "options": "-vn -dn -sn -ignore_unknown -probesize 32 -analyzeduration 0",
 }
 
-# Opcje dla yt-dlp - zoptymalizowane pod kątem playlist i omijania blokad
+# Opcje dla yt-dlp - zoptymalizowane pod kątem omijania blokad i dostępności formatów
 YDL_OPTIONS = {
     "format": "bestaudio/best",
     "noplaylist": False,
@@ -21,8 +21,10 @@ YDL_OPTIONS = {
     "ignoreerrors": True,
     "logtostderr": False,
     "no_color": True,
-    "youtube_include_dash_manifest": False,
-    "youtube_include_hls_manifest": False,
+    "youtube_include_dash_manifest": True,
+    "youtube_include_hls_manifest": True,
+    "extract_flat": False,
+    "force_generic_extractor": False,
 }
 
 class YTDLSource(discord.PCMVolumeTransformer):
@@ -40,12 +42,28 @@ class YTDLSource(discord.PCMVolumeTransformer):
             url = url.split("?")[0]
             
         with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-            data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
+            # Próba pobrania bezpośredniego info
+            try:
+                data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
+            except Exception as e:
+                # Jeśli błąd formatu, spróbuj wyszukać tytuł zamiast bezpośredniego linku
+                print(f"Błąd bezpośredni: {e}, próbuję wyszukiwania...")
+                data = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch:{url}", download=not stream))
             
-            if "entries" in data:
-                data = data["entries"][0]
+            if not data:
+                raise Exception("Nie udało się pobrać informacji o filmie.")
 
-            filename = data["url"]
+            if "entries" in data:
+                # Wybierz pierwszy działający wynik z listy
+                entries = [e for e in data["entries"] if e]
+                if not entries:
+                    raise Exception("Brak dostępnych formatów dla tego utworu.")
+                data = entries[0]
+
+            filename = data.get("url")
+            if not filename:
+                raise Exception("Nie znaleziono strumienia audio.")
+
             return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
     @classmethod
