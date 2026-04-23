@@ -9,7 +9,7 @@ logger = logging.getLogger('MusicBot')
 
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
 FFMPEG_OPTIONS = {
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
+    "before_options": "-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" -headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n\" -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
 }
 
@@ -49,12 +49,14 @@ def is_spotify_track(url):
 def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
     base_options = {
-        "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+        "format": "18/22/43/44/best",  # MP4 video z audio (format 18 = 360p MP4, 22 = 720p, best = fallback)
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch",
-        "socket_timeout": 60,
+        "socket_timeout": 120,
+        "sleep_interval": 2,
+        "sleep_interval_requests": 2,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
         "ignoreerrors": True if for_playlist else False,
@@ -81,12 +83,14 @@ def get_ydl_options(for_playlist=False):
 def get_ydl_search_options():
     """Opcje dla YouTube search - pomija pobieranie info aby uniknąć 152-18 błędów."""
     return {
-        "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+        "format": "18/22/43/44/best",  # MP4 video z audio
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch",
-        "socket_timeout": 60,
+        "socket_timeout": 120,
+        "sleep_interval": 2,
+        "sleep_interval_requests": 2,
         "source_address": "0.0.0.0",
         "nocheckcertificate": True,
         "logtostderr": False,
