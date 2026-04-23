@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import config
-from music_handler import YTDLSource
+from music_handler import YTDLSource, is_youtube_url, is_youtube_playlist, is_spotify_url, is_spotify_playlist, is_spotify_track
 import asyncio
 
 import logging
@@ -112,42 +112,73 @@ async def play_next(interaction: discord.Interaction):
         logger.error(f"Błąd kolejki: {e}")
         await play_next(interaction)
 
-@bot.tree.command(name="play", description="Odtwarza piosenkę lub playlistę")
+@bot.tree.command(name="play", description="Odtwarza piosenkę lub playlistę (YouTube, Spotify)")
 async def play(interaction: discord.Interaction, search: str):
     if not await ensure_voice(interaction): return
     await interaction.response.defer()
     guild_id = interaction.guild_id
+    
+    # Rozpoznaj typ URL
+    url_type = "szukanie"
+    if is_spotify_track(search):
+        url_type = "🎵 Spotify single"
+    elif is_spotify_playlist(search):
+        url_type = "📻 Spotify playlist"
+    elif is_youtube_url(search) and is_youtube_playlist(search):
+        url_type = "📺 YouTube playlist"
+    elif is_youtube_url(search):
+        url_type = "🎬 YouTube single"
+    
     try:
+        await interaction.followup.send(f"⏳ Pobieram... ({url_type})")
         info = await YTDLSource.get_info(search, loop=bot.loop)
-        if info and "entries" in info and info["entries"] is not None:
-            urls = [e["url"] for e in info["entries"] if e and "url" in e]
-            if not urls:
-                await interaction.followup.send("Nie znaleziono utworów w tym linku.")
-                return
+        
+        if not info or not info.get("entries"):
+            await interaction.followup.send(f"❌ Nie znaleziono utworów. ({url_type})")
+            logger.warning(f"Nie znaleziono: {search}")
+            return
+        
+        urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
+        if not urls:
+            await interaction.followup.send(f"❌ Nie znaleziono dostępnych utworów w tym linku.")
+            return
+        
+        # PLAYLISTA: Dodaj wszystkie do kolejki
+        if "entries" in info and len(urls) > 1:
             if guild_id not in bot.queue: bot.queue[guild_id] = []
             bot.queue[guild_id].extend(urls)
-            title = info.get("title", "Nieznana playlista")
-            await interaction.followup.send(f"✅ Dodano playlistę: **{title}** ({len(urls)} utworów)\n⏭️ Zaczynamy odtwarzanie...")
-            if not interaction.guild.voice_client.is_playing(): await play_next(interaction)
-        elif info:
+            title = info.get("title", "Playlista")
+            await interaction.followup.send(f"✅ Dodano: **{title}**\n📊 Utworów: **{len(urls)}**\n⏭️ Zaraz zaczynam...")
+            
+            if not interaction.guild.voice_client.is_playing():
+                await play_next(interaction)
+        
+        # SINGLE: Odtwórz natychmiast lub dodaj do kolejki
+        elif urls:
             if interaction.guild.voice_client.is_playing():
                 if guild_id not in bot.queue: bot.queue[guild_id] = []
-                bot.queue[guild_id].append(info["url"])
-                title = info.get("title", "Nieznany utwór")
+                bot.queue[guild_id].append(urls[0])
+                title = info["entries"][0].get("title", "Utwór")
                 await interaction.followup.send(f"➕ Dodano do kolejki: **{title}**")
             else:
                 try:
                     player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
                     def after_playing(error):
-                        if error: print(f"Błąd: {error}")
+                        if error: 
+                            logger.error(f"Błąd FFmpeg: {error}")
                         asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
                     interaction.guild.voice_client.play(player, after=after_playing)
                     await update_status(player.title)
                     await interaction.followup.send(f"🎵 Teraz gram: **{player.title}**")
-                except Exception as e2:
-                    await interaction.followup.send(f"⚠️ Błąd przy odtwarzaniu: {str(e2)[:80]}")
+                except Exception as e:
+                    error_msg = str(e)[:100]
+                    await interaction.followup.send(f"❌ Błąd odtwarzania: {error_msg}")
+                    logger.error(f"Błąd /play: {e}")
+    
     except Exception as e:
-        await interaction.followup.send(f"❌ Błąd: {str(e)[:100]}")
+        error_msg = str(e)[:100]
+        await interaction.followup.send(f"❌ Błąd: {error_msg}")
+        logger.error(f"Błąd /play (główny): {e}")
 
 @bot.tree.command(name="skip", description="Pomija utwór")
 async def skip(interaction: discord.Interaction):

@@ -2,12 +2,41 @@ import discord
 import asyncio
 import yt_dlp
 import os
+import re
+from urllib.parse import urlparse, parse_qs
 
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
 FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000",
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
 }
+
+def is_youtube_url(url):
+    """Sprawdzenie czy URL to YouTube."""
+    return "youtube.com" in url or "youtu.be" in url
+
+def is_youtube_playlist(url):
+    """Sprawdzenie czy YouTube URL to playlista."""
+    if not is_youtube_url(url):
+        return False
+    # playlist?list=... lub /playlist?...
+    return "playlist?list=" in url or "/playlist?" in url
+
+def is_spotify_url(url):
+    """Sprawdzenie czy URL to Spotify."""
+    return "open.spotify.com" in url or "spotify.com" in url
+
+def is_spotify_playlist(url):
+    """Sprawdzenie czy Spotify URL to playlista."""
+    if not is_spotify_url(url):
+        return False
+    return "/playlist/" in url
+
+def is_spotify_track(url):
+    """Sprawdzenie czy Spotify URL to pojedynczy utwór."""
+    if not is_spotify_url(url):
+        return False
+    return "/track/" in url
 
 def get_ydl_options():
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
@@ -50,34 +79,43 @@ class YTDLSource(discord.PCMVolumeTransformer):
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=True):
         loop = loop or asyncio.get_event_loop()
-        
-        # Spotify: pomiń yt-dlp, od razu szukaj na YouTube
-        if "spotify.com" in url:
-            print(f"🎵 Spotify link - konwertuję na YouTube search...")
-            url = f"ytsearch:popularny utwór muzyka"  # Fallback - w rzeczywistości bot spróbuje innego źródła
-        
         opts = get_ydl_options()
         
-        # PIERWSZA PRÓBA: Bezpośredni link z web_embedded
-        try:
-            data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
-        except Exception as e1:
-            error_str = str(e1).lower()
-            # Jeśli YouTube zwrócił błąd (Sign in, unavailable, itp.), spróbuj wyszukiwania
-            if "sign in" in error_str or "bot" in error_str or "unavailable" in error_str or "error code" in error_str:
-                print(f"⚠️ Film niedostępny lub zablokowany. Próbuję wyszukiwania alternatywnego...")
-                # DRUGA PRÓBA: Konwertuj na wyszukiwanie
-                try:
-                    search_term = url.split("/")[-1] if "/" in url else url[:50]
-                    search_url = f"ytsearch:{search_term} muzyka"  # Dodaj "muzyka" aby znaleźć piosenkę
+        # SPOTIFY SINGLE: Wyciągnij metadane i szukaj na YouTube
+        if is_spotify_track(url):
+            print(f"🎵 Spotify track - konwertuję na YouTube search...")
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                    artist = info.get("artist", "Nieznany artysta")
+                    title = info.get("title", "Nieznany utwór")
+                    search_url = f"ytsearch:{artist} - {title}"
+                    print(f"🔍 Szukam na YouTube: {artist} - {title}")
                     data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(search_url, download=not stream))
-                    print(f"✅ Znaleziono alternatywę poprzez wyszukiwanie!")
-                except Exception as e2:
-                    print(f"❌ Wyszukiwanie także nie zadziałało: {e2}")
-                    raise Exception(f"🚫 Film niedostępny na YouTube. Spróbuj innego linku.")
-            else:
-                print(f"❌ Błąd nieznany: {e1}")
-                raise Exception(f"Błąd pobierania: {str(e1)[:80]}")
+            except Exception as e:
+                print(f"⚠️ Spotify fallback nie zadziałał, szukam domyślnie...")
+                search_url = f"ytsearch:popularna muzyka"
+                data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(search_url, download=not stream))
+        
+        # YOUTUBE: Bezpośredni link
+        elif is_youtube_url(url) and not is_youtube_playlist(url):
+            print(f"🎬 YouTube single - próbuję pobrać...")
+            try:
+                data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
+            except Exception as e1:
+                error_str = str(e1).lower()
+                if "sign in" in error_str or "bot" in error_str or "unavailable" in error_str or "error code" in error_str:
+                    print(f"⚠️ Film niedostępny (kod 152-18). Pomijacie...")
+                    raise Exception(f"🚫 Film niedostępny - spróbuj innego linku.")
+                else:
+                    raise e1
+        
+        # POZOSTAŁE: Domyślna obsługa
+        else:
+            try:
+                data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
+            except Exception as e:
+                raise e
         
         if not data:
             raise Exception("Nie udało się pobrać danych o filmie.")
@@ -99,44 +137,85 @@ class YTDLSource(discord.PCMVolumeTransformer):
     @classmethod
     async def get_info(cls, url, *, loop=None):
         loop = loop or asyncio.get_event_loop()
-        
-        # Spotify playlist: konwertuj bezpośrednio na wyszukiwanie
-        if "spotify.com" in url:
-            print(f"🎵 Spotify playlist - zwracam fallback...")
-            return {
-                "title": "Spotify Playlist",
-                "entries": [
-                    {"url": "ytsearch:popularna muzyka", "title": "Utwór ze Spotify"}
-                ]
-            }
-        
         opts = get_ydl_options()
         
-        try:
-            # Spróbuj pobrać playlistę normalnie
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+        # SPOTIFY SINGLE: Konwertuj na YouTube search
+        if is_spotify_track(url):
+            print(f"🎵 Spotify track - zwracam jako wyszukiwanie...")
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                    artist = info.get("artist", "Nieznany artysta")
+                    title = info.get("title", "Nieznany utwór")
+                    return {
+                        "title": f"{artist} - {title}",
+                        "entries": [
+                            {"url": f"ytsearch:{artist} - {title}", "title": f"{artist} - {title}"}
+                        ]
+                    }
+            except Exception as e:
+                print(f"⚠️ Nie mogę pobrać metadanych Spotify: {e}")
+                return {
+                    "title": "Utwór Spotify",
+                    "entries": [{"url": "ytsearch:popularna muzyka", "title": "Utwór"}]
+                }
+        
+        # SPOTIFY PLAYLIST: Iteruj po utwórach i konwertuj każdy
+        elif is_spotify_playlist(url):
+            print(f"📻 Spotify playlist - konwertuję utwory...")
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                    entries = []
+                    for entry in info.get("entries", []):
+                        if entry:
+                            artist = entry.get("artist", "Nieznany artysta")
+                            title = entry.get("title", "Nieznany utwór")
+                            entries.append({
+                                "url": f"ytsearch:{artist} - {title}",
+                                "title": f"{artist} - {title}"
+                            })
+                    if entries:
+                        return {
+                            "title": info.get("title", "Spotify Playlist"),
+                            "entries": entries
+                        }
+            except Exception as e:
+                print(f"⚠️ Błąd Spotify playlist: {e}")
             
-            # Jeśli to playlista, filtruj niedostępne wpisy
-            if data and "entries" in data:
+            # Fallback dla Spotify playlisty
+            return {
+                "title": "Spotify Playlist",
+                "entries": [{"url": "ytsearch:popularna muzyka", "title": "Utwór ze Spotify"}]
+            }
+        
+        # YOUTUBE PLAYLIST: Pobierz wszystkie dostępne wpisy
+        elif is_youtube_playlist(url):
+            print(f"📺 YouTube playlist - pobieram wszystkie wpisy...")
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                
+                # Filtruj niedostępne wpisy
                 valid_entries = []
                 for entry in data.get("entries", []):
-                    if entry:
+                    if entry and entry.get("id"):  # Sprawdzenie czy entry ma ID (jest dostępny)
                         valid_entries.append(entry)
-                data["entries"] = valid_entries
                 
-            return data
-        except Exception as e:
-            error_str = str(e).lower()
-            if "sign in" in error_str or "bot" in error_str or "unavailable" in error_str:
-                print(f"⚠️ Playlista niedostępna, zwracam fallback...")
-                # Fallback: zwróć dummy entry z wyszukiwaniem
-                return {
-                    "title": "Szukana playlista",
-                    "entries": [
-                        {"url": f"ytsearch:popularna muzyka", "title": "Element z playlisty"}
-                    ]
-                }
-            else:
-                print(f"❌ Błąd playlisty: {e}")
-                raise Exception(f"Nie mogę wczytać playlisty: {str(e)[:80]}")
+                print(f"✅ Playlista: {len(valid_entries)} dostępnych / {len(data.get('entries', []))} ogółem")
+                data["entries"] = valid_entries
+                return data
+            except Exception as e:
+                error_str = str(e).lower()
+                print(f"⚠️ Błąd playlisty YouTube: {e}")
+                return {"title": "Playlista", "entries": []}  # Pusta lista
+        
+        # DOMYŚLNIE: Normalne pobieranie
+        else:
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                return data
+            except Exception as e:
+                print(f"❌ Błąd pobierania: {e}")
+                raise Exception(f"Nie mogę wczytać: {str(e)[:80]}")
