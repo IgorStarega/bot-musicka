@@ -129,6 +129,9 @@ Bot jest gotowy do **24/7 produkcji**. Monitoruj `bot.log` pod kątem błędów.
 
 ## Roadmap 2.0 - "Advanced Features" (Q3 2026)
 
+### Struktura plików
+- [] kompletna przebudowa struktury tak aby najważniejsze rzeczy z kodu były w odzielnych plikach, przejrzystość kodu oraz porządek z dokumentacją, niepotrzebne pliki do usunięcia tak samo stare pliki oraz napisanie kodu od nowa zachowując obecną funkcjonalność bota ale zapeniająca przejrzystość w kodzie i logach. Na koniec usunięcie starych komend i napisanie ich od nowa tak aby wyglądały na nowocześniejsze oraz optymalizacja bota.
+
 ### 🎚️ Audio Effects & Processing
 - [ ] `/effect bassboost` - Wzmocnienie basów
 - [ ] `/effect nightcore` - Efekt nightcore (tempo +20%, pitch +5%)
