@@ -2,7 +2,7 @@
 
 Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ulubione stacje radiowe.
 
-**Wersja:** 1.0.0 (Stabilna)
+**Wersja:** 1.1.0 (Stabilna + Optymalizowana)
 **Język:** Python 3.11+
 **Technologia:** discord.py, yt-dlp, FFmpeg
 
@@ -35,18 +35,25 @@ Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ul
 - `IDEAS.md` - Dokumentacja techniczna zmian, analiza ryzyk i roadmapa 2.0.
 
 ## 📋 Lista Komend
-- `/play [link/fraza]` - Odtwarzanie muzyki lub playlist (YT/Spotify).
-- `/radio [ID]` - Odtwarzanie stacji radiowej z API.
-- `/list_radio` - Lista dostępnych stacji (wysyła plik jeśli długa).
-- `/queue` - Podgląd nadchodzących utworów.
-- `/skip` - Pominięcie piosenki.
-- `/stop` - Zatrzymanie muzyki i wyczyszczenie kolejki.
+- `/play [link/fraza]` - Odtwarzanie muzyki lub playlist (YT/Spotify). Automatyczne fallback na wyszukiwanie jeśli niedostępne.
+- `/radio [ID]` - Odtwarzanie stacji radiowej z API (z autocomplete).
+- `/list_radio` - Lista dostępnych stacji radiowych.
+- `/queue` - Podgląd kolejki (pierwsze 10 utworów).
+- `/skip` - Pominięcie aktualnego utworu.
+- `/stop` - Zatrzymanie i czyszczenie kolejki.
+- `/status` - Diagnostyka bota (Discord, FFmpeg, Radio API, Ping).
+- `/test` - Test wszystkich komponentów bota.
 
 ## 🔄 Ostatnie Poprawki (v1.1.0)
 - ✅ Naprawiono błąd `NoneType` przy wczytywaniu playlist.
 - ✅ Dodano profesjonalny system logowania do pliku `bot.log`.
-- ✅ Poprawiono trafność wyszukiwania piosenek ze Spotify.
+- ✅ Poprawiono wyszukiwanie piosenek ze Spotify (bez DRM).
 - ✅ Zoptymalizowano parametry FFmpeg dla szybszego startu audio.
+- ✅ Fallback na wyszukiwanie dla niedostępnych filmów YouTube (152-18).
+- ✅ Auto-Leave: Bot wychodzi gdy zostanie sam na kanale.
+- ✅ Dodano komendy `/status` i `/test` do diagnostyki.
+- ✅ System autocomplete dla `/radio` z filtrowaniem stacji.
+- ✅ Dodano komendę `/queue` do podglądu kolejki.
 
 ---
 Autor: Bot Musicka Team

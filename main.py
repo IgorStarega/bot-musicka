@@ -173,13 +173,12 @@ async def play(interaction: discord.Interaction, search: str):
                 except Exception as e:
                     error_msg = str(e)[:80]
                     await interaction.followup.send(f"❌ {error_msg}")
-                    logger.error(f"/play: {e}")
+                    logger.error(f"/play single: {e}")
     
     except Exception as e:
         error_msg = str(e)[:80]
         await interaction.followup.send(f"❌ {error_msg}")
         logger.error(f"/play główny: {e}")
-        logger.error(f"Błąd /play (główny): {e}")
 
 @bot.tree.command(name="skip", description="Pomija utwór")
 async def skip(interaction: discord.Interaction):

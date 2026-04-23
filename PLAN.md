@@ -24,11 +24,20 @@
 19. **[ZAKOŃCZONE]** Optymalizacja wyszukiwania Spotify (Tytuł + Wykonawca)
 20. **[ZAKOŃCZONE]** Komenda `/queue` i ulepszona lista stacji radiowych
 
+### Dodatkowe Milestones (v1.1.0 Extended):
+21. **[ZAKOŃCZONE]** YouTube fallback na wyszukiwanie (152-18 unavailable videos)
+22. **[ZAKOŃCZONE]** Spotify bez DRM - szukanie na YouTube zamiast pobierania metadanych
+23. **[ZAKOŃCZONE]** Playlist YouTube z ignorowaniem błędów (ignorerrors=True)
+24. **[ZAKOŃCZONE]** Komenda `/status` - diagnostyka bota
+25. **[ZAKOŃCZONE]** Komenda `/test` - test komponentów
+26. **[ZAKOŃCZONE]** Usuniętych zależności (spotipy) - v1.1.0+ nie potrzebuje
+27. **[ZAKOŃCZONE]** Aktualizacja README.md o nowe komendy i strategie
+
 ### Dane bota:
-- **Wersja:** 1.1.0 (Zoptymalizowana Stabilność)
+- **Wersja:** 1.1.0 (Stabilna + YouTube/Spotify Fallback)
 - **Platforma:** Linux / Docker
 - **Typ:** Zaawansowany Bot Muzyczny
-- **Status:** Gotowy do produkcji na VPS (omijanie blokad YT wdrożone)
+- **Status:** Production-Ready (DRM-free strategy, fallback dla blokad, Auto-Leave)
 
 ---
-Ostatnia aktualizacja: 23 kwietnia 2026 (Aktualizacja Stabilności)
+Ostatnia aktualizacja: 23 kwietnia 2026 (Aktualizacja v1.1.0 - Extended)
