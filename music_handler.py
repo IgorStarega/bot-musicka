@@ -10,7 +10,7 @@ FFMPEG_OPTIONS = {
 }
 
 def get_ydl_options():
-    """Generuje opcje yt-dlp z dynamicznym sprawdzaniem cookies."""
+    """Generuje opcje yt-dlp z dynamicznym sprawdzaniem cookies i omijaniem blokad."""
     base_options = {
         "format": "bestaudio/best",
         "noplaylist": False,
@@ -26,25 +26,26 @@ def get_ydl_options():
         "youtube_include_hls_manifest": True,
         "extract_flat": False,
         "force_generic_extractor": False,
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "extractor_args": {
             "youtubetab": ["skip=authcheck"],
             "youtube": {
-                "player_client": ["android", "ios", "web"],
+                "player_client": ["ios", "android", "web"],
                 "player_skip": ["webpage", "configs"]
             }
         },
     }
     
-    # Ścieżka do ciasteczek - szukaj w katalogu config (mapowany przez docker-compose)
-    cookie_paths = ["/app/config/cookies.txt", "config/cookies.txt"]
+    # Próba znalezienia ciasteczek
+    cookie_paths = ["/app/config/cookies.txt", "config/cookies.txt", "cookies.txt"]
     for path in cookie_paths:
         if os.path.exists(path):
-            print(f"✅ Znaleziono plik cookies: {path}")
-            base_options["cookiefile"] = path
-            break
+            if os.path.getsize(path) > 100:
+                print(f"✅ Znaleziono plik cookies: {path}")
+                base_options["cookiefile"] = path
+                break
     else:
-        print("⚠️  OSTRZEŻENIE: Brak pliku cookies.txt! Umieść cookies.txt w katalogu ./config/")
+        print("⚠️ OSTRZEŻENIE: Brak pliku cookies.txt! YouTube może blokować odtwarzanie.")
         
     return base_options
 
