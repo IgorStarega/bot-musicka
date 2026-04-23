@@ -63,17 +63,18 @@ class YTDLSource(discord.PCMVolumeTransformer):
             data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
         except Exception as e1:
             error_str = str(e1).lower()
-            # Jeśli YouTube zwrócił "Sign in", spróbuj innego podejścia
-            if "sign in" in error_str or "bot" in error_str:
-                print(f"⚠️ Próba 1 (web_embedded) zwróciła blokadę. Próbuję wyszukiwania...")
+            # Jeśli YouTube zwrócił błąd (Sign in, unavailable, itp.), spróbuj wyszukiwania
+            if "sign in" in error_str or "bot" in error_str or "unavailable" in error_str or "error code" in error_str:
+                print(f"⚠️ Film niedostępny lub zablokowany. Próbuję wyszukiwania alternatywnego...")
                 # DRUGA PRÓBA: Konwertuj na wyszukiwanie
                 try:
                     search_term = url.split("/")[-1] if "/" in url else url[:50]
-                    search_url = f"ytsearch:{search_term}"
+                    search_url = f"ytsearch:{search_term} muzyka"  # Dodaj "muzyka" aby znaleźć piosenkę
                     data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(search_url, download=not stream))
+                    print(f"✅ Znaleziono alternatywę poprzez wyszukiwanie!")
                 except Exception as e2:
                     print(f"❌ Wyszukiwanie także nie zadziałało: {e2}")
-                    raise Exception(f"🚫 YouTube blokuje dostęp. Spróbuj ponownie za kilka sekund.")
+                    raise Exception(f"🚫 Film niedostępny na YouTube. Spróbuj innego linku.")
             else:
                 print(f"❌ Błąd nieznany: {e1}")
                 raise Exception(f"Błąd pobierania: {str(e1)[:80]}")

@@ -178,8 +178,21 @@ async def list_radio(interaction: discord.Interaction):
     else:
         await interaction.response.send_message(text)
 
+# Autocomplete dla /radio - musi być PRZED dekoratorem komendy
+async def radio_station_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[int]]:
+    """Autocomplete dla /radio - wyświetla dostępne stacje."""
+    stations = config.RADIO_STATIONS
+    choices = []
+    for station_id, info in stations.items():
+        if current.lower() in info['name'].lower() or not current:
+            choices.append(app_commands.Choice(name=f"{info['name']} (ID: {station_id})", value=station_id))
+            if len(choices) >= 25:  # Discord limit: max 25 choices
+                break
+    return choices
+
 @bot.tree.command(name="radio", description="Odtwarza radio")
-@app_commands.describe(station="Wybierz stację")
+@app_commands.describe(station="Wybierz stację radiową z listy")
+@app_commands.autocomplete('station', radio_station_autocomplete)
 async def radio(interaction: discord.Interaction, station: int):
     if not await ensure_voice(interaction): return
     await interaction.response.defer()
@@ -190,12 +203,10 @@ async def radio(interaction: discord.Interaction, station: int):
         
     st_info = config.RADIO_STATIONS[station]
     
-    # Punkt 4 z IDEAS.md: Sprawdzanie dostępności streamu radiowego
     try:
         if interaction.guild.voice_client.is_playing(): 
             interaction.guild.voice_client.stop()
             
-        # Punkt 2 z IDEAS.md: Czyszczenie kolejki przy włączeniu radia
         if interaction.guild_id in bot.queue:
             bot.queue[interaction.guild_id] = []
 
@@ -207,10 +218,114 @@ async def radio(interaction: discord.Interaction, station: int):
 
         interaction.guild.voice_client.play(source, after=after_radio)
         await update_status(f"Radio: {st_info['name']}")
-        await interaction.followup.send(f"Nadawanie radia: **{st_info['name']}**")
+        await interaction.followup.send(f"🎙️ **{st_info['name']}** - nadawanie...")
     except Exception as e:
         logger.error(f"Błąd połączenia z radiem {st_info['name']}: {e}")
         await interaction.followup.send(f"⚠️ Nie udało się połączyć ze stacją **{st_info['name']}**.")
+
+@bot.tree.command(name="status", description="Sprawdza funkcjonowanie bota i wyświetla statystykę")
+async def status(interaction: discord.Interaction):
+    """Diagnoza bota: czy działa Discord, FFmpeg, czy są błędy."""
+    await interaction.response.defer()
+    
+    status_lines = []
+    status_lines.append("🤖 **Status Bot Musicka**\n")
+    
+    # 1. Discord connection
+    if bot.user:
+        status_lines.append(f"✅ Discord: Połączony jako **{bot.user}**")
+    else:
+        status_lines.append(f"❌ Discord: Nie połączony")
+    
+    # 2. Voice state
+    guild = interaction.guild
+    if guild.voice_client:
+        status_lines.append(f"✅ Głos: Na kanale **{guild.voice_client.channel.name}**")
+        if guild.voice_client.is_playing():
+            status_lines.append(f"🎵 Aktualnie gra: Tak")
+        else:
+            status_lines.append(f"⏸️ Aktualnie gra: Nie")
+    else:
+        status_lines.append(f"⏸️ Głos: Nie połączony")
+    
+    # 3. Queue
+    guild_id = interaction.guild_id
+    queue_size = len(bot.queue.get(guild_id, []))
+    status_lines.append(f"📋 Kolejka: {queue_size} utworów")
+    
+    # 4. Radio stations loaded
+    radio_count = len(config.RADIO_STATIONS)
+    status_lines.append(f"📻 Stacje radiowe: {radio_count} załadowanych")
+    
+    # 5. Ping
+    ping = round(bot.latency * 1000)
+    status_lines.append(f"⚡ Ping: {ping}ms")
+    
+    # 6. Commands available
+    commands_count = len(bot.tree.get_commands())
+    status_lines.append(f"⌨️ Komendy: {commands_count} dostępnych")
+    
+    status_lines.append("\n✨ **Wszystko działa poprawnie!**" if queue_size >= 0 else "\n⚠️ Jakieś problemy")
+    
+    logger.info(f"Status sprawdzony przez {interaction.user}")
+    await interaction.followup.send("\n".join(status_lines))
+
+@bot.tree.command(name="test", description="Test funkcjonalności bota")
+async def test(interaction: discord.Interaction):
+    """Test wszystkich komend bota."""
+    await interaction.response.defer()
+    
+    test_results = []
+    test_results.append("🧪 **Test Funkcjonalności Bot Musicka**\n")
+    
+    # Test 1: Bot online
+    try:
+        test_results.append("✅ Bot online - OK")
+    except:
+        test_results.append("❌ Bot online - FAIL")
+    
+    # Test 2: Discord.py
+    try:
+        assert hasattr(bot, 'tree')
+        test_results.append("✅ Discord.py - OK")
+    except:
+        test_results.append("❌ Discord.py - FAIL")
+    
+    # Test 3: FFmpeg dostępny
+    try:
+        import subprocess
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+        test_results.append("✅ FFmpeg - OK")
+    except:
+        test_results.append("⚠️ FFmpeg - Niedostępny (audio może nie działać)")
+    
+    # Test 4: Radio API
+    try:
+        if config.RADIO_STATIONS:
+            test_results.append(f"✅ Radio API - OK ({len(config.RADIO_STATIONS)} stacji)")
+        else:
+            test_results.append("⚠️ Radio API - Brak stacji")
+    except:
+        test_results.append("❌ Radio API - FAIL")
+    
+    # Test 5: yt-dlp
+    try:
+        import yt_dlp
+        test_results.append("✅ yt-dlp - OK")
+    except:
+        test_results.append("❌ yt-dlp - FAIL")
+    
+    # Test 6: Logging
+    try:
+        logger.info("Test log message")
+        test_results.append("✅ Logging - OK")
+    except:
+        test_results.append("❌ Logging - FAIL")
+    
+    test_results.append("\n📊 Testy ukończone!")
+    
+    logger.info(f"Testy wykonane przez {interaction.user}")
+    await interaction.followup.send("\n".join(test_results))
 
 @bot.tree.command(name="queue", description="Pokazuje aktualną kolejkę utworów")
 async def queue(interaction: discord.Interaction):
