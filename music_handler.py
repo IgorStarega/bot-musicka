@@ -49,7 +49,7 @@ def is_spotify_track(url):
 def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
     base_options = {
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
+        "format": "140/251/250/249",  # Audio only: AAC 128k / Opus - unika HTTP 429
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
@@ -78,7 +78,7 @@ def get_ydl_options(for_playlist=False):
 def get_ydl_search_options():
     """Opcje dla YouTube search - pomija pobieranie info aby uniknąć 152-18 błędów."""
     return {
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
+        "format": "140/251/250/249",  # Audio only: AAC 128k / Opus - unika HTTP 429
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
