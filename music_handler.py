@@ -73,7 +73,8 @@ def get_ydl_options(for_playlist=False):
         "extractor_args": {
             "youtube": {
                 # tv_embedded i android omijają blokady 152-18 i zwracają prawdziwe stream URL
-                # Usunięto player_skip: ["js", "configs"] - powodował formats=0
+                # UWAGA: player_skip: ["js", "configs"] celowo usunięte - pomijało JS player
+                # co uniemożliwiało odszyfrowanie stream URL → formats=0
                 "player_client": ["tv_embedded", "android"],
                 "skip_unavailable_videos": True
             }
@@ -238,8 +239,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
             if stream_url:
                 filename = stream_url
             else:
-                # Przekaż video page URL do FFmpeg - ma wbudowany YouTube parser
-                logger.warning(f"⚠️ Brak stream URL z yt-dlp, przekazuję do FFmpeg: {filename[:60]}")
+                # Przekaż video page URL do FFmpeg (wbudowany YouTube parser)
+                # To fallback - normalnie yt-dlp powinien zwrócić stream URL
+                logger.warning(f"⚠️ Fallback: yt-dlp nie zwrócił stream URL, przekazuję do FFmpeg: {filename[:60]}")
         
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")
