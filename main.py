@@ -64,9 +64,26 @@ async def on_voice_state_update(member, before, after):
     # Jeśli bot został sam na kanale
     if len(voice_client.channel.members) == 1:
         logger.info(f"Bot został sam na kanale w {member.guild.name}. Wychodzę...")
+        
+        # Zatrzymaj odtwarzanie i czyszczenie FFmpeg
+        try:
+            if voice_client.is_playing():
+                voice_client.stop()
+                logger.info("✅ Zatrzymano odtwarzanie")
+        except Exception as e:
+            logger.error(f"Błąd zatrzymania: {e}")
+        
+        # Wyczyść kolejkę
         if member.guild.id in bot.queue:
             bot.queue[member.guild.id] = []
-        await voice_client.disconnect()
+        
+        # Odłącz się
+        try:
+            await voice_client.disconnect()
+            logger.info("✅ Odłączono z kanału głosowego")
+        except Exception as e:
+            logger.error(f"Błąd odłączania: {e}")
+        
         await update_status(idle=True)
 
 async def ensure_voice(interaction: discord.Interaction):
@@ -99,8 +116,13 @@ async def play_next(interaction: discord.Interaction):
 
         def after_playing(error):
             if error: 
-                logger.error(f"Błąd FFmpeg: {error}")
-            asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
+                logger.error(f"❌ Błąd FFmpeg: {error}")
+            else:
+                logger.info("✅ Utwór skończył się, przechodzę do następnego")
+            try:
+                asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
+            except Exception as e:
+                logger.error(f"Błąd w after_playing: {e}")
         
         if interaction.guild.voice_client:
             interaction.guild.voice_client.play(player, after=after_playing)
@@ -183,17 +205,36 @@ async def play(interaction: discord.Interaction, search: str):
 @bot.tree.command(name="skip", description="Pomija utwór")
 async def skip(interaction: discord.Interaction):
     if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
-        interaction.guild.voice_client.stop()
-        await interaction.response.send_message("Pominięto.")
-    else: await interaction.response.send_message("Nic nie gra.")
+        try:
+            interaction.guild.voice_client.stop()
+            logger.info("⏭️ Pominięto utwór")
+            await interaction.response.send_message("⏭️ Pominięto.")
+        except Exception as e:
+            logger.error(f"Błąd skip: {e}")
+            await interaction.response.send_message(f"❌ Błąd: {str(e)[:50]}")
+    else:
+        await interaction.response.send_message("Nic nie gra.")
 
 @bot.tree.command(name="stop", description="Zatrzymuje wszystko")
 async def stop(interaction: discord.Interaction):
     if interaction.guild.voice_client:
-        if interaction.guild_id in bot.queue: bot.queue[interaction.guild_id] = []
-        interaction.guild.voice_client.stop()
-        await update_status(idle=True)
-        await interaction.response.send_message("Zatrzymano i wyczyszczono kolejkę.")
+        try:
+            # Wyczyść kolejkę
+            if interaction.guild_id in bot.queue:
+                bot.queue[interaction.guild_id] = []
+            
+            # Zatrzymaj odtwarzanie
+            if interaction.guild.voice_client.is_playing():
+                interaction.guild.voice_client.stop()
+            
+            logger.info("🛑 Zatrzymano wszystko")
+            await update_status(idle=True)
+            await interaction.response.send_message("🛑 Zatrzymano i wyczyszczono kolejkę.")
+        except Exception as e:
+            logger.error(f"Błąd stop: {e}")
+            await interaction.response.send_message(f"❌ Błąd: {str(e)[:50]}")
+    else:
+        await interaction.response.send_message("Bot nie jest połączony.")
 
 @bot.tree.command(name="list_radio", description="Wyświetla listę dostępnych stacji radiowych")
 async def list_radio(interaction: discord.Interaction):

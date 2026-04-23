@@ -4,6 +4,7 @@ import yt_dlp
 import os
 import re
 import logging
+import urllib.parse
 
 logger = logging.getLogger('MusicBot')
 
@@ -38,6 +39,27 @@ def is_spotify_track(url):
     if not is_spotify_url(url):
         return False
     return "/track/" in url
+
+def extract_spotify_info(url):
+    """Ekstrahuje info o utworze/playliście ze Spotify URL (bez pobierania metadanych - DRM)."""
+    try:
+        # Format: https://open.spotify.com/track/... lub /playlist/... itd
+        parts = url.split('/')
+        if len(parts) >= 2:
+            resource_id = parts[-1].split('?')[0]  # Usuń query params
+            return resource_id
+    except:
+        pass
+    return None
+
+def get_youtube_search_query(source, fallback_text="muzyka"):
+    """Tworzy lepszą query do YouTube search niż generyczne 'popular music'."""
+    if source and len(source) > 5:
+        # Usuń specjalne znaki i URL encode
+        clean_query = re.sub(r'[^a-zA-Z0-9\s]', ' ', source[:80])
+        clean_query = ' '.join(clean_query.split())
+        return f"ytsearch:{clean_query}"
+    return f"ytsearch:{fallback_text}"
 
 def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp optymalizowane dla VPS - omija blokady YouTube."""
@@ -81,10 +103,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
         loop = loop or asyncio.get_event_loop()
         opts = get_ydl_options()
         
-        # SPOTIFY: Bez DRM - szukaj na YouTube
+        # SPOTIFY: Bez DRM - szukaj na YouTube ze info z URL
         if is_spotify_url(url):
             logger.info("🎵 Spotify link - szukam na YouTube...")
-            search_query = "ytsearch:popular music hit"
+            # Extrahuj ID - to da nam przynajmniej coś do szukania
+            spotify_id = extract_spotify_info(url)
+            # Szukaj na YouTube - użyj ID lub fallback
+            search_query = get_youtube_search_query(spotify_id, "muzyka") if spotify_id else "ytsearch:popularna muzyka"
             try:
                 data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(search_query, download=not stream))
             except Exception as e:
@@ -98,13 +123,15 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
             except Exception as e1:
                 error_str = str(e1).lower()
-                # Jeśli niedostępny (152-18), spróbuj wyszukania
+                # Jeśli niedostępny (152-18), spróbuj wyszukania z URL jako kontekst
                 if any(x in error_str for x in ["152", "unavailable", "private", "removed", "deleted"]):
                     logger.warning(f"Film niedostępny na tym IP, szukam alternatywy...")
-                    search_query = "ytsearch:popular music"
+                    # Spróbuj extrahować ID video i użyć go do szukania
+                    search_query = get_youtube_search_query(url, "piosenka")
                     try:
                         data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(search_query, download=not stream))
                     except Exception as e2:
+                        logger.error(f"Fallback search failed: {e2}")
                         raise Exception("Film niedostępny")
                 else:
                     raise e1
@@ -112,8 +139,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
         # DOMYŚLNIE: Szukaj
         else:
             logger.info(f"🔍 Szukam: {url[:60]}...")
+            search_query = get_youtube_search_query(url, "muzyka")
             try:
-                data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(url, download=not stream))
+                data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(search_query, download=not stream))
             except Exception as e:
                 raise Exception(f"Nie mogę wczytać: {str(e)[:60]}")
         
@@ -142,20 +170,25 @@ class YTDLSource(discord.PCMVolumeTransformer):
         # SPOTIFY: Bez DRM - zwróć dummy playlistę
         if is_spotify_playlist(url):
             logger.info("📻 Spotify playlist - konwertuję...")
+            spotify_id = extract_spotify_info(url)
+            # Zwróć dummy entries do wyszukania - każdy entry będzie szukany na YouTube
             return {
                 "title": "Spotify Playlist",
                 "entries": [
-                    {"url": "ytsearch:popular music hits", "title": "Track from Spotify"},
-                    {"url": "ytsearch:top music playlist", "title": "Popular song"}
+                    {"url": get_youtube_search_query(spotify_id + " track 1", "muzyka"), "title": "Utwór 1 ze Spotify"},
+                    {"url": get_youtube_search_query(spotify_id + " track 2", "muzyka"), "title": "Utwór 2 ze Spotify"}
                 ]
             }
         
         if is_spotify_track(url):
             logger.info("🎵 Spotify track - konwertuję...")
+            spotify_id = extract_spotify_info(url)
+            # Zwróć search query zamiast dummy ID
+            search_query = get_youtube_search_query(spotify_id, "piosenka")
             return {
                 "title": "Spotify Track",
                 "entries": [
-                    {"url": "ytsearch:popular music hit", "title": "Track from Spotify"}
+                    {"url": search_query, "title": "Utwór ze Spotify"}
                 ]
             }
         
@@ -189,17 +222,19 @@ class YTDLSource(discord.PCMVolumeTransformer):
             except Exception as e:
                 logger.warning(f"Nie mogę pobrać YouTube: {e}")
                 # Fallback: zwróć jako szukanie
+                search_query = get_youtube_search_query(url, "piosenka")
                 return {
                     "title": "Szukanie",
-                    "entries": [{"url": url, "title": "Utwór"}]
+                    "entries": [{"url": search_query, "title": "Utwór"}]
                 }
         
         # DOMYŚLNIE: Szukaj
         logger.info(f"🔍 Szukam: {url[:60]}...")
         opts = get_ydl_options()
         try:
+            search_query = get_youtube_search_query(url, "muzyka")
             with yt_dlp.YoutubeDL(opts) as ydl:
-                data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_query, download=False))
             return data
         except Exception as e:
             logger.error(f"Błąd pobierania: {e}")
