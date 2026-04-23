@@ -6,6 +6,6 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app
+      - ./config:/app/config
     tty: true
     stdin_open: true

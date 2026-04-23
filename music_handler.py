@@ -29,15 +29,15 @@ def get_ydl_options():
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
     }
     
-    # Ścieżka do ciasteczek (podstawowa i dla Dockera)
-    cookie_paths = ["cookies.txt", "/app/cookies.txt", "/app/config/cookies.txt"]
+    # Ścieżka do ciasteczek - szukaj w katalogu config (mapowany przez docker-compose)
+    cookie_paths = ["/app/config/cookies.txt", "config/cookies.txt"]
     for path in cookie_paths:
         if os.path.exists(path):
-            print(f"Znaleziono plik cookies: {path}")
+            print(f"✅ Znaleziono plik cookies: {path}")
             base_options["cookiefile"] = path
             break
     else:
-        print("OSTRZEŻENIE: Brak pliku cookies.txt! YouTube może blokować odtwarzanie.")
+        print("⚠️  OSTRZEŻENIE: Brak pliku cookies.txt! Umieść cookies.txt w katalogu ./config/")
         
     return base_options
 
