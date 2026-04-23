@@ -116,16 +116,25 @@ class YTDLSource(discord.PCMVolumeTransformer):
             # Spróbuj pobrać playlistę normalnie
             with yt_dlp.YoutubeDL(opts) as ydl:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+            
+            # Jeśli to playlista, filtruj niedostępne wpisy
+            if data and "entries" in data:
+                valid_entries = []
+                for entry in data.get("entries", []):
+                    if entry:
+                        valid_entries.append(entry)
+                data["entries"] = valid_entries
+                
             return data
         except Exception as e:
             error_str = str(e).lower()
-            if "sign in" in error_str or "bot" in error_str:
-                print(f"⚠️ YouTube zablokował playlistę. Fallback na wyszukiwanie...")
-                # Fallback: zwróć dummy entry, aby /play konwertował to na wyszukiwanie
+            if "sign in" in error_str or "bot" in error_str or "unavailable" in error_str:
+                print(f"⚠️ Playlista niedostępna, zwracam fallback...")
+                # Fallback: zwróć dummy entry z wyszukiwaniem
                 return {
                     "title": "Szukana playlista",
                     "entries": [
-                        {"url": f"ytsearch:{url.split('/')[-1][:30]}", "title": "Element z playlisty"}
+                        {"url": f"ytsearch:popularna muzyka", "title": "Element z playlisty"}
                     ]
                 }
             else:

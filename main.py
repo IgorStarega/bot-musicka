@@ -92,21 +92,24 @@ async def play_next(interaction: discord.Interaction):
         try:
             player = await YTDLSource.from_url(source_url, loop=bot.loop, stream=True)
         except Exception as e:
-            await interaction.channel.send(f"⚠️ Pominąłem utwór z powodu błędu: `{str(e)[:100]}`")
+            error_msg = str(e)[:80]
+            logger.warning(f"⚠️ Pominąłem utwór z powodu błędu: {error_msg}")
+            await interaction.channel.send(f"⏭️ Pominąłem niedostępny utwór, przechodzę dalej...")
             return await play_next(interaction)
 
         def after_playing(error):
-            if error: print(f"Błąd FFmpeg: {error}")
+            if error: 
+                logger.error(f"Błąd FFmpeg: {error}")
             asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
         
         if interaction.guild.voice_client:
             interaction.guild.voice_client.play(player, after=after_playing)
             await update_status(player.title)
-            await interaction.channel.send(f"Teraz gram: **{player.title}**")
+            await interaction.channel.send(f"🎵 Teraz gram: **{player.title}**")
         else:
             await update_status(idle=True)
     except Exception as e:
-        print(f"Błąd kolejki: {e}")
+        logger.error(f"Błąd kolejki: {e}")
         await play_next(interaction)
 
 @bot.tree.command(name="play", description="Odtwarza piosenkę lub playlistę")
@@ -124,24 +127,27 @@ async def play(interaction: discord.Interaction, search: str):
             if guild_id not in bot.queue: bot.queue[guild_id] = []
             bot.queue[guild_id].extend(urls)
             title = info.get("title", "Nieznana playlista")
-            await interaction.followup.send(f"Dodano playlistę: **{title}** ({len(urls)} utworów)")
+            await interaction.followup.send(f"✅ Dodano playlistę: **{title}** ({len(urls)} utworów)\n⏭️ Zaczynamy odtwarzanie...")
             if not interaction.guild.voice_client.is_playing(): await play_next(interaction)
         elif info:
             if interaction.guild.voice_client.is_playing():
                 if guild_id not in bot.queue: bot.queue[guild_id] = []
                 bot.queue[guild_id].append(info["url"])
                 title = info.get("title", "Nieznany utwór")
-                await interaction.followup.send(f"Dodano do kolejki: **{title}**")
+                await interaction.followup.send(f"➕ Dodano do kolejki: **{title}**")
             else:
-                player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
-                def after_playing(error):
-                    if error: print(f"Błąd: {error}")
-                    asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
-                interaction.guild.voice_client.play(player, after=after_playing)
-                await update_status(player.title)
-                await interaction.followup.send(f"Teraz gram: **{player.title}**")
+                try:
+                    player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
+                    def after_playing(error):
+                        if error: print(f"Błąd: {error}")
+                        asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
+                    interaction.guild.voice_client.play(player, after=after_playing)
+                    await update_status(player.title)
+                    await interaction.followup.send(f"🎵 Teraz gram: **{player.title}**")
+                except Exception as e2:
+                    await interaction.followup.send(f"⚠️ Błąd przy odtwarzaniu: {str(e2)[:80]}")
     except Exception as e:
-        await interaction.followup.send(f"Błąd: {str(e)}")
+        await interaction.followup.send(f"❌ Błąd: {str(e)[:100]}")
 
 @bot.tree.command(name="skip", description="Pomija utwór")
 async def skip(interaction: discord.Interaction):
