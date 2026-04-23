@@ -72,17 +72,21 @@ def get_ydl_options(for_playlist=False):
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "extractor_args": {
             "youtube": {
-                "player_client": ["web_embedded"],
-                "player_skip": ["js", "configs"],
+                # tv_embedded i android omijają blokady 152-18 i zwracają prawdziwe stream URL
+                # Usunięto player_skip: ["js", "configs"] - powodował formats=0
+                "player_client": ["tv_embedded", "android"],
                 "skip_unavailable_videos": True
             }
         },
     }
+    # Dodaj ciasteczka jeśli dostępne - pomagają ominąć rate limiting YouTube
+    if os.path.exists("config/cookies.txt"):
+        base_options["cookiefile"] = "config/cookies.txt"
     return base_options
 
 def get_ydl_search_options():
-    """Opcje dla YouTube search - pomija pobieranie info aby uniknąć 152-18 błędów."""
-    return {
+    """Opcje dla YouTube search - pobiera tylko listę wyników (bez pełnego info)."""
+    opts = {
         "format": "251/250/249/140/141/132/18/22/best",  # Audio-only z fallback
         "noplaylist": False,
         "quiet": True,
@@ -95,8 +99,8 @@ def get_ydl_search_options():
         "nocheckcertificate": True,
         "logtostderr": False,
         "no_color": True,
-        "extract_flat": "in_playlist",  # Tylko URLs, bez info - uniknie 152-18!
-        "ignoreerrors": True,  # Pomijaj niedostępne
+        "extract_flat": "in_playlist",  # Tylko URLs, bez info - szybkie wyszukiwanie
+        "ignoreerrors": True,
         "skip_unavailable_videos": True,
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -104,12 +108,14 @@ def get_ydl_search_options():
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "extractor_args": {
             "youtube": {
-                "player_client": ["web_embedded"],
-                "player_skip": ["js", "configs"],
+                "player_client": ["tv_embedded", "android"],
                 "skip_unavailable_videos": True
             }
         },
     }
+    if os.path.exists("config/cookies.txt"):
+        opts["cookiefile"] = "config/cookies.txt"
+    return opts
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -195,18 +201,14 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.debug(f"  → Przetwarzam pierwszy wpis z {len(entries)} dostępnych")
             first_entry = entries[0]
             
-            # Jeśli to tylko URL z extract_flat, pobierz pełne info
-            if isinstance(first_entry, dict) and "url" in first_entry and "title" not in first_entry:
+            # Jeśli entry nie ma formats (wynik extract_flat), pobierz pełne info z yt-dlp
+            if isinstance(first_entry, dict) and "url" in first_entry and not first_entry.get("formats"):
                 first_url = first_entry['url']
-                logger.info(f"  📥 Pobieranie full info dla: {first_url[:50]}...")
-                logger.debug(f"  → Potrzebny formats array aby wyciągnąć stream URL")
+                logger.info(f"  📥 Pobieranie full info: {first_url[:50]}...")
                 try:
                     opts = get_ydl_options()
-                    logger.info(f"  → extract_flat w opcjach: {opts.get('extract_flat', 'default')}")
                     data = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(opts).extract_info(first_url, download=not stream))
-                    logger.info(f"  ✓ Full info pobrane: {data.get('title', 'N/A')[:50]}")
-                    has_formats = "formats" in data
-                    logger.info(f"  → Formats w response: {has_formats} ({len(data.get('formats', []))} szt.)")
+                    logger.debug(f"  ✓ Full info pobrane: {data.get('title', 'N/A')[:50]}, formats: {len(data.get('formats', []))}")
                 except Exception as e:
                     error_str = str(e).lower()
                     if "429" in error_str or "too many" in error_str:
@@ -214,63 +216,33 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     logger.warning(f"  ⚠️ Nie mogę pobrać full info: {str(e)[:80]}")
                     data = first_entry
             else:
-                logger.info(f"  ℹ️ Mamy już info: {first_entry.get('title', 'N/A')[:50]}")
-                logger.info(f"  → Formats dostępne: {len(first_entry.get('formats', []))} szt.")
                 data = first_entry
         
         filename = data.get("url")
         if not filename:
             logger.error("❌ Brak URL w danych yt-dlp")
-            logger.debug(f"  Dostępne pola: {list(data.keys())}")
             raise Exception("Brak strumienia")
         
-        # DEBUG: Pokaż wszystkie dostępne pola
-        logger.info(f"  📋 Pola yt-dlp data:")
-        for key in ['url', 'direct_url', 'ext_url', 'http_headers', 'webpage_url']:
-            if key in data:
-                val = str(data[key])[:60]
-                logger.info(f"    - {key}: {val}")
-        
-        # Jeśli video page URL, szukaj rzeczywistego stream URL
+        # Jeśli video page URL, szukaj stream URL w alternatywnych polach lub w formats
         if "watch?v=" in filename or "youtu.be" in filename:
-            logger.info(f"  ⚠️ Video page URL: {filename[:60]}")
-            
-            # Szukaj alternatywnych pól ze stream URL
             stream_url = None
-            
-            # 1. Spróbuj inne pola
             for field in ['direct_url', 'ext_url', 'url_resolved']:
-                if field in data and data[field]:
-                    candidate = data[field]
-                    if "watch?v=" not in candidate:
-                        stream_url = candidate
-                        logger.info(f"  ✓ Znalazłem w {field}: {candidate[:60]}")
-                        break
-            
-            # 2. Jeśli nic, spróbuj formats (jeśli dostępne)
+                candidate = data.get(field)
+                if candidate and "watch?v=" not in candidate:
+                    stream_url = candidate
+                    logger.debug(f"  ✓ Stream URL z pola '{field}'")
+                    break
             if not stream_url and data.get("formats"):
-                fmt = data["formats"][0]
-                stream_url = fmt.get("url")
-                logger.info(f"  ✓ Znalazłem w formats[0]: {stream_url[:60]}")
-            
+                stream_url = data["formats"][0].get("url")
+                logger.debug(f"  ✓ Stream URL z formats[0]")
             if stream_url:
                 filename = stream_url
             else:
-                logger.warning(f"  ❌ Nie znaleziono stream URL - będzie HTTP 429")
-        else:
-            logger.info(f"  ✓ Stream URL: {filename[:60]}")
+                # Przekaż video page URL do FFmpeg - ma wbudowany YouTube parser
+                logger.warning(f"⚠️ Brak stream URL z yt-dlp, przekazuję do FFmpeg: {filename[:60]}")
         
         title = data.get('title', 'Utwór')[:60]
         logger.info(f"✅ Wczytano: {title}")
-        logger.debug(f"  → URL Type: {'Video Page' if 'watch?' in filename else 'Stream'}")
-        logger.debug(f"  → Full URL: {filename}")
-        
-        # Safety check - jeśli wciąż video page URL, nie ma co grać
-        if "watch?v=" in filename or "youtu.be" in filename:
-            logger.error(f"❌ BŁĄD: Wciąż mamy video page URL! FFmpeg nie może to otworzyć!")
-            logger.error(f"  Przyczyna: yt-dlp nie zwrócił stream URL z żadnego pola")
-            logger.error(f"  Spróbuj zmienić format selection lub player_client")
-            raise Exception("Nie mogę wyciągnąć stream URL")
         
         return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
