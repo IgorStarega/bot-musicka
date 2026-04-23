@@ -51,6 +51,7 @@ def get_ydl_options(for_playlist=False):
     """Generuje opcje yt-dlp - poprawione pod kątem blokad 2026."""
     base_options = {
         "format": "bestaudio/best",
+        "username": "oauth2",
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
