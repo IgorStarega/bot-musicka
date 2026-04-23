@@ -5,6 +5,20 @@ import config
 from music_handler import YTDLSource
 import asyncio
 
+import logging
+import os
+
+# Konfiguracja logowania logów do pliku (Punkt 10 z IDEAS.md)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
+    handlers=[
+        logging.FileHandler('bot.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('MusicBot')
+
 class MusicBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -13,8 +27,15 @@ class MusicBot(commands.Bot):
         self.queue = {}
 
     async def setup_hook(self):
+        # Sprawdzanie ciasteczek przy starcie (Punkt 1 z IDEAS.md)
+        cookie_path = 'config/cookies.txt'
+        if os.path.exists(cookie_path):
+            logger.info(f"✅ Znaleziono plik ciasteczek: {cookie_path}")
+        else:
+            logger.warning(f"⚠️ Brak pliku {cookie_path}! YouTube może blokować żądania.")
+        
         await self.tree.sync()
-        print(f"Zsynchronizowano komendy slash dla {self.user}")
+        logger.info(f"Zsynchronizowano komendy slash dla {self.user}")
 
 bot = MusicBot()
 
@@ -25,13 +46,28 @@ async def update_status(activity_text=None, idle=False):
         elif activity_text:
             await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=activity_text))
     except Exception as e:
-        print(f"Błąd zmiany statusu: {e}")
+        logger.error(f"Błąd zmiany statusu: {e}")
 
 @bot.event
 async def on_ready():
-    print(f"Zalogowano jako {bot.user} (ID: {bot.user.id})")
+    logger.info(f"Zalogowano jako {bot.user} (ID: {bot.user.id})")
     await update_status(idle=True)
-    print("------")
+    logger.info("------")
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    # Punkt 2 z IDEAS.md: Auto-leave i czyszczenie zasobów
+    voice_client = member.guild.voice_client
+    if not voice_client:
+        return
+
+    # Jeśli bot został sam na kanale
+    if len(voice_client.channel.members) == 1:
+        logger.info(f"Bot został sam na kanale w {member.guild.name}. Wychodzę...")
+        if member.guild.id in bot.queue:
+            bot.queue[member.guild.id] = []
+        await voice_client.disconnect()
+        await update_status(idle=True)
 
 async def ensure_voice(interaction: discord.Interaction):
     if not interaction.guild.voice_client:
@@ -80,14 +116,17 @@ async def play(interaction: discord.Interaction, search: str):
     guild_id = interaction.guild_id
     try:
         info = await YTDLSource.get_info(search, loop=bot.loop)
-        if "entries" in info:
-            urls = [e["url"] for e in info["entries"] if e]
+        if info and "entries" in info and info["entries"] is not None:
+            urls = [e["url"] for e in info["entries"] if e and "url" in e]
+            if not urls:
+                await interaction.followup.send("Nie znaleziono utworów w tym linku.")
+                return
             if guild_id not in bot.queue: bot.queue[guild_id] = []
             bot.queue[guild_id].extend(urls)
             title = info.get("title", "Nieznana playlista")
             await interaction.followup.send(f"Dodano playlistę: **{title}** ({len(urls)} utworów)")
             if not interaction.guild.voice_client.is_playing(): await play_next(interaction)
-        else:
+        elif info:
             if interaction.guild.voice_client.is_playing():
                 if guild_id not in bot.queue: bot.queue[guild_id] = []
                 bot.queue[guild_id].append(info["url"])
@@ -131,7 +170,11 @@ async def list_radio(interaction: discord.Interaction):
     
     # Discord ma limit 2000 znaków
     if len(text) > 2000:
-        await interaction.response.send_message(text[:1990] + "...")
+        # Zapisz do pliku tymczasowego i wyślij jeśli lista jest za długa
+        with open("stations_list.txt", "w", encoding="utf-8") as f:
+            f.write(text.replace("**", "").replace("`", ""))
+        await interaction.response.send_message("Lista stacji jest zbyt długa, wysyłam ją w pliku:", file=discord.File("stations_list.txt"))
+        os.remove("stations_list.txt")
     else:
         await interaction.response.send_message(text)
 
@@ -146,11 +189,45 @@ async def radio(interaction: discord.Interaction, station: int):
         return
         
     st_info = config.RADIO_STATIONS[station]
-    if interaction.guild.voice_client.is_playing(): interaction.guild.voice_client.stop()
-    source = discord.FFmpegPCMAudio(st_info["url"], **{"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000", "options": "-vn"})
-    interaction.guild.voice_client.play(source)
-    await update_status(f"Radio: {st_info['name']}")
-    await interaction.followup.send(f"Radio: **{st_info['name']}**")
+    
+    # Punkt 4 z IDEAS.md: Sprawdzanie dostępności streamu radiowego
+    try:
+        if interaction.guild.voice_client.is_playing(): 
+            interaction.guild.voice_client.stop()
+            
+        # Punkt 2 z IDEAS.md: Czyszczenie kolejki przy włączeniu radia
+        if interaction.guild_id in bot.queue:
+            bot.queue[interaction.guild_id] = []
+
+        source = discord.FFmpegPCMAudio(st_info["url"], **{"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000", "options": "-vn"})
+        
+        def after_radio(error):
+            if error: logger.error(f"Błąd radia: {error}")
+            asyncio.run_coroutine_threadsafe(update_status(idle=True), bot.loop)
+
+        interaction.guild.voice_client.play(source, after=after_radio)
+        await update_status(f"Radio: {st_info['name']}")
+        await interaction.followup.send(f"Nadawanie radia: **{st_info['name']}**")
+    except Exception as e:
+        logger.error(f"Błąd połączenia z radiem {st_info['name']}: {e}")
+        await interaction.followup.send(f"⚠️ Nie udało się połączyć ze stacją **{st_info['name']}**.")
+
+@bot.tree.command(name="queue", description="Pokazuje aktualną kolejkę utworów")
+async def queue(interaction: discord.Interaction):
+    # Punkt 4 z Roadmappy: Komenda /queue
+    guild_id = interaction.guild_id
+    if guild_id not in bot.queue or not bot.queue[guild_id]:
+        return await interaction.response.send_message("Kolejka jest pusta.")
+    
+    text = "**Aktualna kolejka:**\n"
+    for i, url in enumerate(bot.queue[guild_id][:10], 1):
+        clean_url = url.replace("ytsearch:", "")
+        text += f"{i}. {clean_url}\n"
+    
+    if len(bot.queue[guild_id]) > 10:
+        text += f"\n*...i {len(bot.queue[guild_id]) - 10} więcej piosenek.*"
+        
+    await interaction.response.send_message(text)
 
 if __name__ == "__main__":
     if not config.DISCORD_TOKEN or config.DISCORD_TOKEN == "YOUR_TOKEN_HERE":

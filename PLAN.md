@@ -1,6 +1,6 @@
 # Plan Rozwoju Bota Muzycznego - Bot Musicka
 
-## Status Projektu: Inicjalizacja
+## Status Projektu: Produkcja (v1.1.0)
 
 ### Etapy:
 1.  **[ZAKOŃCZONE]** Przygotowanie środowiska i bibliotek
@@ -18,12 +18,17 @@
 13. **[ZAKOŃCZONE]** Analiza kodu i poprawki stabilności (stop przed play, timeouty FFmpeg)
 14. **[ZAKOŃCZONE]** Automatyczne dołączanie/przenoszenie bota przy komendach odtwarzania
 15. **[ZAKOŃCZONE]** Rozwijana lista (Choices) dla komendy /radio
+16. **[ZAKOŃCZONE]** Wdrożenie logowania do pliku `bot.log`
+17. **[ZAKOŃCZONE]** System Auto-Leave (oszczędzanie zasobów VPS)
+18. **[ZAKOŃCZONE]** Naprawa obsługi playlist i błędów NoneType
+19. **[ZAKOŃCZONE]** Optymalizacja wyszukiwania Spotify (Tytuł + Wykonawca)
+20. **[ZAKOŃCZONE]** Komenda `/queue` i ulepszona lista stacji radiowych
 
 ### Dane bota:
-- **Wersja:** 1.0.0
+- **Wersja:** 1.1.0 (Zoptymalizowana Stabilność)
 - **Platforma:** Linux / Docker
-- **Typ:** Minimalistyczny Bot Muzyczny (MPV)
-- **Status:** Gotowy do wdrożenia na Linux VRPS/LXC
+- **Typ:** Zaawansowany Bot Muzyczny
+- **Status:** Gotowy do produkcji na VPS (omijanie blokad YT wdrożone)
 
 ---
-Ostatnia aktualizacja: 23 kwietnia 2026
+Ostatnia aktualizacja: 23 kwietnia 2026 (Aktualizacja Stabilności)

@@ -6,7 +6,7 @@ import os
 # Opcje dla FFmpeg - zoptymalizowane pod kątem stabilności i szybkości startu
 FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000",
-    "options": "-vn -dn -sn -ignore_unknown -probesize 32 -analyzeduration 0",
+    "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
 }
 
 def get_ydl_options():
@@ -30,7 +30,7 @@ def get_ydl_options():
         "extractor_args": {
             "youtubetab": ["skip=authcheck"],
             "youtube": {
-                "player_client": ["ios", "android", "web"],
+                "player_client": ["android", "ios", "web"],
                 "player_skip": ["webpage", "configs"]
             }
         },
@@ -40,10 +40,13 @@ def get_ydl_options():
     cookie_paths = ["/app/config/cookies.txt", "config/cookies.txt", "cookies.txt"]
     for path in cookie_paths:
         if os.path.exists(path):
-            if os.path.getsize(path) > 100:
-                print(f"✅ Znaleziono plik cookies: {path}")
-                base_options["cookiefile"] = path
-                break
+            try:
+                if os.path.getsize(path) > 100:
+                    print(f"✅ Znaleziono plik cookies: {path}")
+                    base_options["cookiefile"] = path
+                    break
+            except Exception:
+                continue
     else:
         print("⚠️ OSTRZEŻENIE: Brak pliku cookies.txt! YouTube może blokować odtwarzanie.")
         
@@ -107,24 +110,28 @@ class YTDLSource(discord.PCMVolumeTransformer):
         
         # Obsługa playlist Spotify
         if "spotify.com" in url:
-            # Włączamy pobieranie informacji o wszystkich elementach listy
             opts = get_ydl_options()
             opts["extract_flat"] = "in_playlist"
             with yt_dlp.YoutubeDL(opts) as ydl:
                 try:
                     data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
-                    if data and "entries" in data:
+                    if data and "entries" in data and data["entries"] is not None:
                         # Przetwarzamy każdy element na zapytanie wyszukiwania YouTube
-                        # To ułatwia automatyczne odtwarzanie kolejnych utworów z listy
+                        new_entries = []
                         for entry in data["entries"]:
                             if entry:
-                                # Konstruujemy frazę wyszukiwania
                                 artist = entry.get("artist") or entry.get("uploader") or ""
-                                title = entry.get("title")
+                                title = entry.get("title") or "Nieznany utwór"
+                                # Dodajemy informację o oryginalnym tytule do wyszukiwania
                                 entry["url"] = f"ytsearch:{title} {artist}".strip()
+                                new_entries.append(entry)
+                        data["entries"] = new_entries
                     return data
                 except Exception as e:
                     print(f"Błąd pobierania info Spotify: {e}")
         
-        with yt_dlp.YoutubeDL(get_ydl_options()) as ydl:
+        opts = get_ydl_options()
+        # Dla playlist YouTube chcemy tylko metadane bez rozwijania ich tutaj, 
+        # chyba że to faktycznie wezwanie do pobrania info o liście.
+        with yt_dlp.YoutubeDL(opts) as ydl:
             return await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
