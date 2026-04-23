@@ -105,7 +105,33 @@ async def play_next(interaction: discord.Interaction):
 
     source_url = bot.queue[guild_id].pop(0)
     try:
-        # Próba uzyskania info z obsługą błędów
+        # Sprawdź czy to radio
+        if source_url.startswith("RADIO:"):
+            radio_id = int(source_url.split(":")[1])
+            if radio_id not in config.RADIO_STATIONS:
+                logger.warning(f"⚠️ Radio ID {radio_id} nie znaleziony")
+                return await play_next(interaction)
+            
+            st_info = config.RADIO_STATIONS[radio_id]
+            logger.info(f"🎙️ Radio: {st_info['name']}")
+            
+            def after_radio(error):
+                if error: 
+                    logger.error(f"❌ Błąd radia: {error}")
+                else:
+                    logger.info("✅ Radio skończyło, przechodzę do następnego")
+                try:
+                    asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
+                except Exception as e:
+                    logger.error(f"Błąd w after_radio: {e}")
+            
+            source = discord.FFmpegPCMAudio(st_info["url"], **{"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 10000000", "options": "-vn"})
+            interaction.guild.voice_client.play(source, after=after_radio)
+            await update_status(f"Radio: {st_info['name']}")
+            await interaction.channel.send(f"🎙️ **{st_info['name']}** - nadawanie...")
+            return
+        
+        # Normalny utwór z YouTube/Spotify
         try:
             player = await YTDLSource.from_url(source_url, loop=bot.loop, stream=True)
         except Exception as e:
@@ -405,6 +431,85 @@ async def test(interaction: discord.Interaction):
     
     logger.info(f"Testy wykonane przez {interaction.user}")
     await interaction.followup.send("\n".join(test_results))
+
+@bot.tree.command(name="testplay", description="Test grania z YouTube, Spotify i Radio")
+async def testplay(interaction: discord.Interaction):
+    """Testuje funkcjonalność grania z trzech źródeł."""
+    if not await ensure_voice(interaction): 
+        return
+    await interaction.response.defer()
+    
+    test_urls = [
+        ("🎬 YouTube", "https://www.youtube.com/watch?v=NgGocWmOst0"),
+        ("🎵 Spotify", "https://open.spotify.com/track/3RF2igIVJSCr19izf01C8h?si=c26d59ea521540fb"),
+        ("🎙️ Radio", "180")  # Radio ID 180
+    ]
+    
+    guild_id = interaction.guild_id
+    
+    try:
+        await interaction.followup.send("🧪 **Test grania z trzech źródeł**\n\nDodaję do kolejki:\n" + 
+                                       "\n".join([f"• {name}" for name, _ in test_urls]))
+        
+        # Dodaj do kolejki
+        if guild_id not in bot.queue:
+            bot.queue[guild_id] = []
+        
+        # Test 1: YouTube
+        try:
+            logger.info("🎬 Test YouTube - pobieram info...")
+            info = await YTDLSource.get_info(test_urls[0][1], loop=bot.loop)
+            if info and info.get("entries"):
+                urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
+                if urls:
+                    bot.queue[guild_id].append(urls[0])
+                    logger.info(f"✅ YouTube - dodano do kolejki")
+                else:
+                    logger.warning("⚠️ YouTube - brak dostępnych URLów")
+            else:
+                logger.warning("⚠️ YouTube - brak info")
+        except Exception as e:
+            logger.error(f"❌ YouTube - {str(e)[:60]}")
+        
+        # Test 2: Spotify
+        try:
+            logger.info("🎵 Test Spotify - pobieram info...")
+            info = await YTDLSource.get_info(test_urls[1][1], loop=bot.loop)
+            if info and info.get("entries"):
+                urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
+                if urls:
+                    bot.queue[guild_id].append(urls[0])
+                    logger.info(f"✅ Spotify - dodano do kolejki")
+                else:
+                    logger.warning("⚠️ Spotify - brak dostępnych URLów")
+            else:
+                logger.warning("⚠️ Spotify - brak info")
+        except Exception as e:
+            logger.error(f"❌ Spotify - {str(e)[:60]}")
+        
+        # Test 3: Radio
+        try:
+            logger.info("🎙️ Test Radio (ID 180)")
+            radio_id = 180
+            if radio_id in config.RADIO_STATIONS:
+                bot.queue[guild_id].append(f"RADIO:{radio_id}")
+                logger.info(f"✅ Radio - dodano do kolejki")
+            else:
+                logger.warning(f"⚠️ Radio - ID {radio_id} nie znaleziony")
+        except Exception as e:
+            logger.error(f"❌ Radio - {str(e)[:60]}")
+        
+        # Zagraj kolejkę
+        if bot.queue[guild_id]:
+            await interaction.followup.send(f"✅ Dodano {len(bot.queue[guild_id])} item(ów) do kolejki\n⏳ Zaraz zaczynam grać...")
+            if not interaction.guild.voice_client.is_playing():
+                await play_next(interaction)
+        else:
+            await interaction.followup.send("❌ Nie udało się dodać żadnych itemów do kolejki")
+            
+    except Exception as e:
+        logger.error(f"❌ Błąd testu: {e}")
+        await interaction.followup.send(f"❌ Błąd: {str(e)[:100]}")
 
 @bot.tree.command(name="queue", description="Pokazuje aktualną kolejkę utworów")
 async def queue(interaction: discord.Interaction):
