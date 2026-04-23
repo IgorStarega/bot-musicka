@@ -169,9 +169,6 @@ async def play_next(interaction: discord.Interaction):
         else:
             logger.error("  ❌ Brak voice client")
             await update_status(idle=True)
-            await interaction.channel.send(f"🎵 Teraz gram: **{player.title}**")
-        else:
-            await update_status(idle=True)
     except Exception as e:
         logger.error(f"Błąd kolejki: {e}")
         await play_next(interaction)
