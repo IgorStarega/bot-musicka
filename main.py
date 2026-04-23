@@ -184,10 +184,11 @@ async def play(interaction: discord.Interaction, search: str):
                 await interaction.followup.send(f"➕ **{title}**")
             else:
                 try:
-                    player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
+                    # Użyj urls[0] (search query z get_info), nie oryginalny search!
+                    player = await YTDLSource.from_url(urls[0], loop=bot.loop, stream=True)
                     def after_playing(error):
                         if error: 
-                            logger.error(f"Błąd FFmpeg: {error}")
+                            logger.error(f"❌ Błąd FFmpeg: {error}")
                         asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
                     interaction.guild.voice_client.play(player, after=after_playing)
                     await update_status(player.title)
