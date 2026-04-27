@@ -3,10 +3,11 @@ import asyncio
 import yt_dlp
 import os
 import logging
+import requests
 
 logger = logging.getLogger('MusicBot')
 
-# Całkowicie wyłączamy ścieżkę do ciasteczek
+# Ścieżka do ciasteczek YouTube (eksportowane z przeglądarki)
 COOKIES_PATH = "config/cookies.txt"
 
 # Opcje dla FFmpeg
@@ -42,9 +43,23 @@ def is_spotify_track(url):
 
 # --- KONFIGURACJA YT-DLP ---
 
+def _get_spotify_title(url):
+    """Pobierz tytuł utworu/playlisty Spotify przez oEmbed API (bez autoryzacji)."""
+    try:
+        resp = requests.get(
+            "https://open.spotify.com/oembed",
+            params={"url": url},
+            timeout=5
+        )
+        if resp.status_code == 200:
+            return resp.json().get("title", "")
+    except Exception as e:
+        logger.warning(f"[Spotify oEmbed] {type(e).__name__}: {e}")
+    return ""
+
 def get_ydl_options(for_playlist=False):
-    """Opcje yt-dlp z web_embedded client (stabilny na VPS) + timeout."""
-    return {
+    """Opcje yt-dlp z ios+web_embedded client (stabilny na VPS) + cookies + timeout."""
+    opts = {
         "format": "bestaudio/best",
         "noplaylist": False,
         "quiet": True,
@@ -53,17 +68,20 @@ def get_ydl_options(for_playlist=False):
         "nocheckcertificate": True,
         "ignoreerrors": True if for_playlist else False,
         "extract_flat": False,
-        "socket_timeout": 30,  # Socket timeout 30s
+        "socket_timeout": 30,
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         },
         "extractor_args": {
             "youtube": {
-                "player_client": ["web_embedded", "tv_embedded", "android"],
+                "player_client": ["ios", "web_embedded", "tv_embedded"],
                 "skip_unavailable_videos": True
             }
         },
     }
+    if os.path.exists(COOKIES_PATH):
+        opts["cookiefile"] = COOKIES_PATH
+    return opts
 
 def get_ydl_search_options():
     """Opcje dla wyszukiwania - musi zwrócić entries zamiast single track"""
@@ -135,40 +153,68 @@ class YTDLSource(discord.PCMVolumeTransformer):
         """Pobierz info o URL - zwraca dict z entries lub empty dict"""
         loop = loop or asyncio.get_event_loop()
         logger.info(f"[get_info START] URL: {url[:60]}")
-        
+
+        # Spotify: DRM-protected, redirect do wyszukiwania YouTube przez oEmbed title
+        if is_spotify_url(url):
+            logger.info(f"[get_info] Spotify URL - pobieranie tytułu przez oEmbed...")
+            title = await loop.run_in_executor(None, _get_spotify_title, url)
+            if not title:
+                # Fallback: użyj ID traka/playlisty jako query
+                title = url.split("/")[-1].split("?")[0]
+                logger.warning(f"[get_info] oEmbed nieudane, szukam po ID: {title}")
+            else:
+                logger.info(f"[get_info] oEmbed title: {title[:50]}")
+            search_url = f"ytsearch:{title}"
+            opts = get_ydl_search_options()
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
+                if data and data.get("entries"):
+                    logger.info(f"[get_info] Spotify→YT sukces: {len(data['entries'])} wpisów")
+                    return data
+            except Exception as e:
+                logger.error(f"[get_info] Spotify→YT search FAILED: {type(e).__name__}: {str(e)[:80]}")
+            return {"entries": []}
+
         opts = get_ydl_search_options()
         logger.info(f"[get_info] Using search options: extract_flat={opts.get('extract_flat')}, player_client={opts.get('extractor_args', {}).get('youtube', {}).get('player_client')}")
-        
+
         try:
             logger.info(f"[get_info] Attempting primary extract_info...")
             with yt_dlp.YoutubeDL(opts) as ydl:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
             logger.info(f"[get_info PRIMARY SUCCESS] Got data with entries count: {len(data.get('entries', [])) if data else 0}")
-            if data:
+            # Sprawdź czy data zawiera użyteczne wpisy
+            if data and (data.get("entries") or "url" in data or "formats" in data):
                 return data
-            logger.warning(f"[get_info] Primary returned None, using empty dict")
-            return {"entries": []}
-            
+            logger.warning(f"[get_info] Primary zwróciło puste dane, próbuję fallback")
         except Exception as e:
             logger.warning(f"[get_info EXCEPTION] {type(e).__name__}: {str(e)[:80]}")
-            # Fallback: szukaj na YouTube zamiast dawać up
-            query = url.split('/')[-1] if '/' in url else url
-            logger.info(f"[get_info FALLBACK START] Query: {query[:50]}")
-            
-            try:
-                search_url = f"ytsearch:{query}"
-                logger.info(f"[get_info FALLBACK] Searching: {search_url}")
-                
-                fallback_opts = get_ydl_search_options()
-                # Nie zmieniaj extract_flat - chcemy entries!
-                logger.info(f"[get_info FALLBACK] Opts: extract_flat={fallback_opts.get('extract_flat')}, playlistend={fallback_opts.get('playlistend')}")
-                
-                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                    data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
-                
-                logger.info(f"[get_info FALLBACK SUCCESS] Got data with entries: {len(data.get('entries', [])) if data else 0}")
-                return data if data else {"entries": []}
-                
-            except Exception as e2:
-                logger.error(f"[get_info FALLBACK FAILED] {type(e2).__name__}: {str(e2)[:80]}")
-                return {"entries": []}
+
+        # Dla bezpośredniego URL YouTube (nie playlist) - zwróć syntetyczny wpis,
+        # żeby from_url() mógł spróbować z cookies
+        if is_youtube_url(url) and not is_youtube_playlist(url) and not url.startswith("ytsearch:"):
+            logger.info(f"[get_info] Zwracam syntetyczny wpis dla YouTube URL")
+            video_id = url.split("v=")[-1].split("&")[0] if "v=" in url else url.split("/")[-1].split("?")[0]
+            return {"entries": [{"url": url, "title": f"Utwór [{video_id}]"}]}
+
+        # Ogólny fallback: szukaj na YouTube
+        query = url.split('/')[-1].split('?')[0] if '/' in url else url
+        logger.info(f"[get_info FALLBACK START] Query: {query[:50]}")
+
+        try:
+            search_url = f"ytsearch:{query}"
+            logger.info(f"[get_info FALLBACK] Searching: {search_url}")
+
+            fallback_opts = get_ydl_search_options()
+            logger.info(f"[get_info FALLBACK] Opts: extract_flat={fallback_opts.get('extract_flat')}, playlistend={fallback_opts.get('playlistend')}")
+
+            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
+
+            logger.info(f"[get_info FALLBACK SUCCESS] Got data with entries: {len(data.get('entries', [])) if data else 0}")
+            return data if data else {"entries": []}
+
+        except Exception as e2:
+            logger.error(f"[get_info FALLBACK FAILED] {type(e2).__name__}: {str(e2)[:80]}")
+            return {"entries": []}
