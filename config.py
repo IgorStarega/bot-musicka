@@ -1,9 +1,12 @@
 import os
 import requests
+import logging
 from dotenv import load_dotenv
 
 # Załaduj zmienne z pliku .env
 load_dotenv()
+
+logger = logging.getLogger('MusicBot')
 
 def get_radio_stations():
     """Pobiera stacje radiowe z API i usuwa te bez URL."""
@@ -15,8 +18,6 @@ def get_radio_stations():
         
         stations = {}
         for item in data:
-            # Pomiń stacje OpenFM bez bezpośredniego URL (wymagałyby dodatkowej logiki)
-            # Jeśli URL jest None, próbujemy zbudować go dla OpenFM
             url = item.get("url")
             if not url and item.get("isOpenFM") == 1:
                 url = f"https://stream-cdn-1.open.fm/OFM{item['openFmId']}/ngrp:standard/playlist.m3u8"
@@ -28,7 +29,7 @@ def get_radio_stations():
                 }
         return stations
     except Exception as e:
-        print(f"Błąd API Radiowego: {e}")
+        logger.error(f"Błąd API Radiowego: {e}")
         return {
             130: {"name": "RMF FM", "url": "https://rs6-krk2.rmfstream.pl/rmf_fm"},
             170: {"name": "Radio ZET", "url": "https://27943.live.streamtheworld.com/RADIO_ZETAAC.aac?dist=zet"}

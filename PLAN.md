@@ -60,11 +60,22 @@
 47. **[ZAKOŃCZONE]** Improvement: `from_url()` - `title_hint` param dla lepszego fallback search
 48. **[ZAKOŃCZONE]** Improvement: Tracking `current_track` per guild w MusicBot
 
+### v1.5.0 Milestones (Optymalizacja & Cleanup - 27 kwietnia 2026):
+49. **[ZAKOŃCZONE]** Feat: Dodana komenda `/disconnect` (odłącz bota + wyczyść kolejkę)
+50. **[ZAKOŃCZONE]** Improvement: kolejka przechowuje `{"url", "title"}` zamiast gołych URL-i → `/queue` wyświetla tytuły
+51. **[ZAKOŃCZONE]** Fix: `play_next()` pomija utwór gdy `from_url()` zwróci None (było crashowanie)
+52. **[ZAKOŃCZONE]** Improvement: `/favorite` używa `Literal["add","remove"]` → proper slash-command choices
+53. **[ZAKOŃCZONE]** Refactor: nadmiarowe step-by-step logi INFO → DEBUG w `music_handler.py`
+54. **[ZAKOŃCZONE]** Fix: `config.py` używa `logger.error()` zamiast `print()`
+55. **[ZAKOŃCZONE]** Cleanup: usunięte stale tagi `(v1.3.0)` z opisów wszystkich komend
+56. **[ZAKOŃCZONE]** Fix: bare `except:` zastąpione przez `except Exception:` w `/test`
+57. **[ZAKOŃCZONE]** Fix: `/status` pokazuje prawidłowy komunikat końcowy zamiast zawsze "OK"
+
 ### Dane bota:
-- **Wersja:** 1.4.0 (Commands & Fixes)
+- **Wersja:** 1.5.0 (Optymalizacja & Cleanup)
 - **Platforma:** Linux / Docker
 - **Typ:** Zaawansowany Bot Muzyczny
-- **Status:** Production-Ready ✅ (pause/resume/volume, nowplaying fixed, favorite fixed)
+- **Status:** Production-Ready ✅ (17 komend, tytuły w kolejce, disconnect, zoptymalizowane logi)
 
 ---
-Ostatnia aktualizacja: 27 kwietnia 2026 (v1.4.0 - Commands & Fixes)
+Ostatnia aktualizacja: 27 kwietnia 2026 (v1.5.0 - Optymalizacja & Cleanup)

@@ -28,7 +28,7 @@ Ten plik definiuje reguły, konwencje i procedury dla wszystkich agentów (w tym
 
 ```
 bot-musicka/
-├── main.py                 # Discord bot core + all commands (v1.4.0: 16 komend)
+├── main.py                 # Discord bot core + all commands (v1.5.0: 17 komend)
 ├── music_handler.py        # yt-dlp integration + audio streaming
 ├── config.py               # Environment vars + Radio API
 ├── user_storage.py         # User data storage (favorites, history, stats - JSON based)
@@ -411,25 +411,21 @@ Jeśli coś nie działa:
 
 ---
 
-## 📊 v1.4.0 Features (Commands & Fixes)
+## 📊 v1.5.0 Features (Optymalizacja & Cleanup)
 
-- **`/pause`** - Wstrzymanie odtwarzania
-- **`/resume`** - Wznowienie po pauzie
-- **`/volume [0-100]`** - Zmiana głośności
-- **`/nowplaying`** - Info o aktualnym utworze (naprawione - prawdziwy tytuł i URL)
-- **`/favorites`** - Pokaż ulubione utwory (JSON storage)
-- **`/favorite add|remove`** - Zarządzanie ulubionymi (naprawione)
-- **`/history`** - Historia ostatnio granych (limit 50, wyświetl 20)
-- **`/mystats`** - Statystyki użytkownika z embedem (rich embed)
-- **Tracking** - Automatyczne dodawanie do historii i skip count
-- **Storage** - JSON-based, persistent w `config/user_data/users.json`
+- **`/disconnect`** - Odłącz bota z kanału głosowego i wyczyść kolejkę (nowe!)
+- **`/queue`** - Wyświetla tytuły zamiast surowych URL-i (ulepszone)
+- **`/favorite add|remove`** - Proper slash-command choices (Literal type)
+- **Queue dict storage** - kolejka trzyma `{"url": ..., "title": ...}` zamiast gołych URL
+- **Debug logging** - step-by-step logi z `music_handler.py` przeniesione na DEBUG
+- **config.py logger** - `print()` zastąpione przez `logger.error()`
 
-### Kluczowe naprawy v1.4.0:
-- ✅ `get_info()` normalizuje single video dict → `{"entries": [data]}` (naprawia fałszywy "Brak")
-- ✅ Spotify URL → oEmbed → YouTube search (brak DRM errors)
-- ✅ `current_track` per-guild tracking (potrzebny dla /nowplaying i /favorite)
-- ✅ `from_url()` przyjmuje `title_hint` dla lepszego fallback search
+### Kluczowe naprawy v1.5.0:
+- ✅ `play_next()` poprawnie pomija utwór gdy `from_url()` zwraca None (zapobieganie crashom)
+- ✅ `/status` pokazuje prawidłową ocenę stanu zamiast zawsze "wszystko OK"
+- ✅ bare `except:` zastąpione przez `except Exception:` w `/test`
+- ✅ Stare tagi `(v1.3.0)` usunięte z opisów komend
 
 ---
 
-**Ostatnia aktualizacja:** 27 kwietnia 2026 | **Status:** Aktywny | **Wersja:** v1.4.0 (Commands & Fixes)
+**Ostatnia aktualizacja:** 27 kwietnia 2026 | **Status:** Aktywny | **Wersja:** v1.5.0 (Optymalizacja & Cleanup)
