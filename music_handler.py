@@ -100,7 +100,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.url = data.get("url")
 
     @classmethod
-    async def from_url(cls, url, *, loop=None, stream=True):
+    async def from_url(cls, url, *, loop=None, stream=True, title_hint=None):
         loop = loop or asyncio.get_event_loop()
         logger.info(f"[from_url START] URL: {url[:60]}, stream={stream}")
         
@@ -119,7 +119,19 @@ class YTDLSource(discord.PCMVolumeTransformer):
         except Exception as e:
             logger.warning(f"[from_url EXCEPTION] {type(e).__name__}: {str(e)[:80]}")
             # Fallback: spróbuj wyszukać na YouTube
-            query = url.split('/')[-1] if '/' in url else url
+            # Użyj title_hint jeśli dostępny, w przeciwnym razie wyciągnij sensowny query z URL
+            if title_hint:
+                query = title_hint
+            elif is_youtube_url(url):
+                # Dla YouTube URL bez tytułu, ekstrahuj video_id obsługując oba formaty
+                if "v=" in url:
+                    query = url.split("v=")[-1].split("&")[0]
+                elif "youtu.be/" in url:
+                    query = url.split("youtu.be/")[-1].split("?")[0]
+                else:
+                    query = url.split("/")[-1].split("?")[0]
+            else:
+                query = url.split('/')[-1] if '/' in url else url
             logger.info(f"[from_url FALLBACK] Searching for: {query[:50]}")
             
             try:
@@ -195,7 +207,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
         # żeby from_url() mógł spróbować z cookies
         if is_youtube_url(url) and not is_youtube_playlist(url) and not url.startswith("ytsearch:"):
             logger.info(f"[get_info] Zwracam syntetyczny wpis dla YouTube URL")
-            video_id = url.split("v=")[-1].split("&")[0] if "v=" in url else url.split("/")[-1].split("?")[0]
+            # Obsługa youtube.com/watch?v=ID i youtu.be/ID
+            if "v=" in url:
+                video_id = url.split("v=")[-1].split("&")[0]
+            elif "youtu.be/" in url:
+                video_id = url.split("youtu.be/")[-1].split("?")[0]
+            else:
+                video_id = url.split("/")[-1].split("?")[0]
             return {"entries": [{"url": url, "title": f"Utwór [{video_id}]"}]}
 
         # Ogólny fallback: szukaj na YouTube

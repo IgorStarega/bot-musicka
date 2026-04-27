@@ -26,6 +26,7 @@ class MusicBot(commands.Bot):
         intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
         self.queue = {}
+        self.current_track = {}  # guild_id -> {"title": ..., "url": ..., "requester": ...}
 
     async def setup_hook(self):
         # Sprawdzanie ciasteczek przy starcie (Punkt 1 z IDEAS.md)
@@ -103,6 +104,7 @@ async def play_next(interaction: discord.Interaction):
     
     if guild_id not in bot.queue or not bot.queue[guild_id]:
         logger.info("📬 Kolejka pusta, kończę")
+        bot.current_track.pop(guild_id, None)
         await update_status(idle=True)
         return
 
@@ -128,6 +130,7 @@ async def play_next(interaction: discord.Interaction):
             
             source = discord.FFmpegPCMAudio(st_info["url"], **RADIO_FFMPEG_OPTIONS)
             interaction.guild.voice_client.play(source, after=after_radio)
+            bot.current_track[guild_id] = {"title": f"🎙️ Radio: {st_info['name']}", "url": st_info["url"], "requester": None}
             await update_status(f"Radio: {st_info['name']}")
             await interaction.channel.send(f"🎙️ **{st_info['name']}** - nadawanie...")
             logger.info(f"✅ Radio uruchomione")
@@ -152,6 +155,7 @@ async def play_next(interaction: discord.Interaction):
         
         if interaction.guild.voice_client:
             interaction.guild.voice_client.play(player, after=after_playing)
+            bot.current_track[guild_id] = {"title": player.title, "url": source_url, "requester": None}
             await update_status(player.title)
             await interaction.channel.send(f"🎵 Teraz gram: **{player.title}**")
             # v1.3.0: Dodaj do historii
@@ -229,7 +233,8 @@ async def play(interaction: discord.Interaction, search: str):
                 await interaction.followup.send(f"➕ **{title}**")
             else:
                 try:
-                    player = await YTDLSource.from_url(urls[0], loop=bot.loop, stream=True)
+                    title_hint = entries[0].get("title") if entries and isinstance(entries[0], dict) else None
+                    player = await YTDLSource.from_url(urls[0], loop=bot.loop, stream=True, title_hint=title_hint)
                     if not player:
                         await interaction.followup.send(f"❌ Nie mogę przygotować utworu")
                         return
@@ -238,6 +243,7 @@ async def play(interaction: discord.Interaction, search: str):
                             logger.error(f"Błąd FFmpeg: {error}")
                         asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
                     interaction.guild.voice_client.play(player, after=after_playing)
+                    bot.current_track[guild_id] = {"title": player.title, "url": urls[0], "requester": str(interaction.user)}
                     await update_status(player.title)
                     user_storage.add_to_history(interaction.user.id, urls[0], player.title)
                     logger.info(f"🎵 Gram: {player.title}")
@@ -492,14 +498,28 @@ async def queue(interaction: discord.Interaction):
 async def favorite(interaction: discord.Interaction, action: str):
     """Dodaj/usuń aktualnie grany utwór do/z ulubionych"""
     await interaction.response.defer()
-    
-    if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
-        # Spróbujemy pobrać info o grającym utworze
-        # TO jest hack - discord.py nie udostępnia direct info o aktualnie grającym utworze
-        logger.info(f"⭐ /favorite {action} - brak bezpośredniego dostępu do info")
-        await interaction.followup.send("❌ Nie mogę pobrać info o aktualnym utworze (discord.py limitation)\n💡 Jako workaround: `/nowplaying` pokaże URL, który możesz ręcznie dodać")
+    guild_id = interaction.guild_id
+
+    track = bot.current_track.get(guild_id)
+    if not track:
+        return await interaction.followup.send("❌ Nic nie gra")
+
+    if action == "add":
+        result = user_storage.add_favorite(interaction.user.id, track["url"], track["title"])
+        if result:
+            logger.info(f"⭐ /favorite add - {track['title']} dla {interaction.user}")
+            await interaction.followup.send(f"⭐ Dodano do ulubionych: **{track['title']}**")
+        else:
+            await interaction.followup.send(f"⚠️ Już masz ten utwór w ulubionych")
+    elif action == "remove":
+        result = user_storage.remove_favorite(interaction.user.id, track["url"])
+        if result:
+            logger.info(f"🗑️ /favorite remove - {track['title']} dla {interaction.user}")
+            await interaction.followup.send(f"🗑️ Usunięto z ulubionych: **{track['title']}**")
+        else:
+            await interaction.followup.send(f"⚠️ Nie znaleziono w ulubionych")
     else:
-        await interaction.followup.send("❌ Nic nie gra")
+        await interaction.followup.send("❌ Użyj `add` lub `remove`")
 
 @bot.tree.command(name="favorites", description="Pokaż swoje ulubione utwory (v1.3.0)")
 async def favorites(interaction: discord.Interaction):
@@ -544,18 +564,27 @@ async def history(interaction: discord.Interaction):
 async def nowplaying(interaction: discord.Interaction):
     """Wyświetl informacje o aktualnie grającym utworze"""
     await interaction.response.defer()
-    
+    guild_id = interaction.guild_id
+
     if not (interaction.guild.voice_client and interaction.guild.voice_client.is_playing()):
         return await interaction.followup.send("⏸️ Nic nie gra")
-    
-    # Pobierz status z update_status - to jest rough approximation
-    text = "🎵 **Teraz gram:**\n"
-    text += f"*Szczegóły niedostępne (discord.py limitation)*\n"
-    text += f"⏰ Serwer: {interaction.guild.name}\n"
-    text += f"👤 Użytkownik: {interaction.user.mention}"
-    
+
+    track = bot.current_track.get(guild_id)
+    if not track:
+        return await interaction.followup.send("🎵 Coś gra, ale brak szczegółów.")
+
+    embed = discord.Embed(
+        title="🎵 Teraz gram",
+        description=f"**{track['title']}**",
+        color=discord.Color.green()
+    )
+    if track.get("url"):
+        embed.add_field(name="🔗 URL", value=track["url"][:200], inline=False)
+    if track.get("requester"):
+        embed.set_footer(text=f"Dodany przez: {track['requester']}")
+
     logger.info(f"🎵 /nowplaying - {interaction.user}")
-    await interaction.followup.send(text)
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="mystats", description="Twoje statystyki (v1.3.0)")
 async def mystats(interaction: discord.Interaction):
@@ -579,6 +608,42 @@ async def mystats(interaction: discord.Interaction):
     
     logger.info(f"📊 /mystats - {interaction.user}")
     await interaction.followup.send(embed=embed)
+
+@bot.tree.command(name="pause", description="Wstrzymaj odtwarzanie")
+async def pause(interaction: discord.Interaction):
+    guild_id = interaction.guild_id
+    if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
+        interaction.guild.voice_client.pause()
+        logger.info(f"⏸️ /pause [{guild_id}]")
+        await interaction.response.send_message("⏸️ Wstrzymano.")
+    else:
+        await interaction.response.send_message("Nic nie gra.")
+
+@bot.tree.command(name="resume", description="Wznów odtwarzanie po pauzie")
+async def resume(interaction: discord.Interaction):
+    guild_id = interaction.guild_id
+    if interaction.guild.voice_client and interaction.guild.voice_client.is_paused():
+        interaction.guild.voice_client.resume()
+        logger.info(f"▶️ /resume [{guild_id}]")
+        await interaction.response.send_message("▶️ Wznowiono.")
+    else:
+        await interaction.response.send_message("Nic nie jest wstrzymane.")
+
+@bot.tree.command(name="volume", description="Zmień głośność bota (0-100)")
+@app_commands.describe(vol="Głośność od 0 do 100")
+async def volume(interaction: discord.Interaction, vol: int):
+    guild_id = interaction.guild_id
+    vc = interaction.guild.voice_client
+    if not vc or (not vc.is_playing() and not vc.is_paused()):
+        return await interaction.response.send_message("Nic nie gra.")
+    if vol < 0 or vol > 100:
+        return await interaction.response.send_message("❌ Głośność musi być między 0 a 100!")
+    if isinstance(vc.source, discord.PCMVolumeTransformer):
+        vc.source.volume = vol / 100
+        logger.info(f"🔊 /volume {vol} [{guild_id}]")
+        await interaction.response.send_message(f"🔊 Głośność: **{vol}%**")
+    else:
+        await interaction.response.send_message("⚠️ Nie mogę zmienić głośności dla tego źródła.")
 
 if __name__ == "__main__":
     if not config.DISCORD_TOKEN or config.DISCORD_TOKEN == "YOUR_TOKEN_HERE":

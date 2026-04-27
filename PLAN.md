@@ -51,11 +51,20 @@
 40. **[ZAKOŃCZONE]** Improvement: KOMPLETNY logging w get_info(), from_url(), /play z prefixes
 41. **[ZAKOŃCZONE]** Improvement: Dodany socket_timeout i User-Agent do yt-dlp options
 
+### v1.4.0 Milestones (Commands & Fixes - 27 kwietnia 2026):
+42. **[ZAKOŃCZONE]** Fix: `/nowplaying` - teraz pokazuje prawdziwy tytuł i URL aktualnego utworu
+43. **[ZAKOŃCZONE]** Fix: `/favorite add/remove` - działa przez `current_track` tracking
+44. **[ZAKOŃCZONE]** FEAT: `/pause` - wstrzymanie odtwarzania
+45. **[ZAKOŃCZONE]** FEAT: `/resume` - wznowienie odtwarzania po pauzie
+46. **[ZAKOŃCZONE]** FEAT: `/volume [0-100]` - zmiana głośności
+47. **[ZAKOŃCZONE]** Improvement: `from_url()` - `title_hint` param dla lepszego fallback search
+48. **[ZAKOŃCZONE]** Improvement: Tracking `current_track` per guild w MusicBot
+
 ### Dane bota:
-- **Wersja:** 1.3.0-patch2 (Social & Interactive + Comprehensive Hotfixes)
+- **Wersja:** 1.4.0 (Commands & Fixes)
 - **Platforma:** Linux / Docker
 - **Typ:** Zaawansowany Bot Muzyczny
-- **Status:** Production-Ready ✅ (OAuth2 removed, Full logging, Fallback search, DRM-free)
+- **Status:** Production-Ready ✅ (pause/resume/volume, nowplaying fixed, favorite fixed)
 
 ---
-Ostatnia aktualizacja: 27 kwietnia 2026 (v1.3.0-patch2 - Comprehensive Hotfixes)
+Ostatnia aktualizacja: 27 kwietnia 2026 (v1.4.0 - Commands & Fixes)
