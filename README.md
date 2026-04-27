@@ -2,7 +2,7 @@
 
 Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ulubione stacje radiowe.
 
-**Wersja:** 1.3.0-patch2 (Społeczna + Interaktywna + Hotfixes)
+**Wersja:** 1.4.0 (Commands & Fixes)
 **Język:** Python 3.11+
 **Technologia:** discord.py, yt-dlp, FFmpeg
 **Status:** Production-Ready ✅
@@ -47,6 +47,9 @@ Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ul
 - `/queue` - Podgląd kolejki (pierwsze 10 utworów).
 - `/skip` - Pominięcie aktualnego utworu.
 - `/stop` - Zatrzymanie i czyszczenie kolejki.
+- `/pause` - Wstrzymanie odtwarzania.
+- `/resume` - Wznowienie odtwarzania po pauzie.
+- `/volume [0-100]` - Zmiana głośności bota.
 
 ### Statystyki & Zarządzanie (v1.3.0)
 - `/nowplaying` - Info o aktualnie grającym utworze.
@@ -59,16 +62,16 @@ Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ul
 - `/status` - Diagnostyka bota (Discord, FFmpeg, Radio API, Ping).
 - `/test` - Test wszystkich komponentów bota.
 
-## 🔄 Ostatnie Poprawki (v1.3.0)
-- ✅ System przechowywania ulubionych i historii (JSON-based, persistent).
-- ✅ Komenda `/history` - Przeglądaj ostatnie słuchane utwory.
-- ✅ Komenda `/favorites` - Pokaż ulubione utwory.
-- ✅ Komenda `/mystats` - Statystyki użytkownika z embedem.
-- ✅ Komenda `/nowplaying` - Info o aktualnym utworze.
-- ✅ Tracking skip'ów i ulubionych w statystykach.
-- ✅ Integracja user_storage.py z całym botem.
+## 🔄 Ostatnie Poprawki (v1.4.0)
+- ✅ Komenda `/pause` - wstrzymanie odtwarzania.
+- ✅ Komenda `/resume` - wznowienie po pauzie.
+- ✅ Komenda `/volume [0-100]` - zmiana głośności.
+- ✅ Komenda `/nowplaying` - naprawiono, teraz pokazuje prawdziwy tytuł i URL.
+- ✅ Komenda `/favorite add/remove` - naprawiono, działa przez śledzenie aktualnego utworu.
+- ✅ Fix: `/play` nie zwracał błędu gdy yt-dlp zwrócił poprawny wynik (normalizacja `entries`).
+- ✅ Fix: Spotify URL → wyszukiwanie YouTube przez oEmbed API (brak DRM errors).
 
 ---
 Autor: Bot Musicka Team
 Data: 27 kwietnia 2026
-Wersja: 1.3.0 (Społeczna + Interaktywna)
+Wersja: 1.4.0 (Commands & Fixes)

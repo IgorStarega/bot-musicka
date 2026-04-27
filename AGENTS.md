@@ -28,17 +28,16 @@ Ten plik definiuje reguły, konwencje i procedury dla wszystkich agentów (w tym
 
 ```
 bot-musicka/
-├── main.py                 # Discord bot core + all commands (v1.3.0: 13 komend)
+├── main.py                 # Discord bot core + all commands (v1.4.0: 16 komend)
 ├── music_handler.py        # yt-dlp integration + audio streaming
 ├── config.py               # Environment vars + Radio API
-├── user_storage.py         # User data storage (v1.3.0: favorites, history, stats - JSON based)
+├── user_storage.py         # User data storage (favorites, history, stats - JSON based)
 ├── requirements.txt        # Python dependencies
 ├── docker-compose.yml      # Docker orchestration
 ├── Dockerfile              # Multi-stage build
 ├── README.md               # User documentation
 ├── PLAN.md                 # Development roadmap
 ├── IDEAS.md                # Error analysis + feature ideas
-├── UPDATE_*.md             # Version changelog
 ├── AGENTS.md               # This file
 ├── .env.example            # Env template
 ├── .gitignore              # Git rules
@@ -412,27 +411,25 @@ Jeśli coś nie działa:
 
 ---
 
-## 📊 v1.3.0 Features (Social & Interactive)
+## 📊 v1.4.0 Features (Commands & Fixes)
 
+- **`/pause`** - Wstrzymanie odtwarzania
+- **`/resume`** - Wznowienie po pauzie
+- **`/volume [0-100]`** - Zmiana głośności
+- **`/nowplaying`** - Info o aktualnym utworze (naprawione - prawdziwy tytuł i URL)
 - **`/favorites`** - Pokaż ulubione utwory (JSON storage)
+- **`/favorite add|remove`** - Zarządzanie ulubionymi (naprawione)
 - **`/history`** - Historia ostatnio granych (limit 50, wyświetl 20)
-- **`/nowplaying`** - Info o aktualnym utworze
 - **`/mystats`** - Statystyki użytkownika z embedem (rich embed)
-- **`/favorite add|remove`** - Zarządzanie ulubionymi (alpha)
 - **Tracking** - Automatyczne dodawanie do historii i skip count
 - **Storage** - JSON-based, persistent w `config/user_data/users.json`
 
----
-
-## 🔧 v1.3.0-patch2 Hotfixes (27 kwietnia 2026)
-
-- ✅ **REMOVED:** `yt-dlp-youtube-oauth2` plugin (was forcing OAuth2)
-- ✅ **FIXED:** `extract_flat=False` for proper search results
-- ✅ **ADDED:** Comprehensive logging with [get_info], [from_url], [/play] prefixes
-- ✅ **ADDED:** `socket_timeout: 30` to prevent hanging
-- ✅ **ADDED:** User-Agent header to avoid bot detection
-- ✅ **FIXED:** Fallback search query extraction from URLs
+### Kluczowe naprawy v1.4.0:
+- ✅ `get_info()` normalizuje single video dict → `{"entries": [data]}` (naprawia fałszywy "Brak")
+- ✅ Spotify URL → oEmbed → YouTube search (brak DRM errors)
+- ✅ `current_track` per-guild tracking (potrzebny dla /nowplaying i /favorite)
+- ✅ `from_url()` przyjmuje `title_hint` dla lepszego fallback search
 
 ---
 
-**Ostatnia aktualizacja:** 27 kwietnia 2026 | **Status:** Aktywny | **Wersja:** v1.3.0-patch2 (Social & Interactive + Hotfixes)
+**Ostatnia aktualizacja:** 27 kwietnia 2026 | **Status:** Aktywny | **Wersja:** v1.4.0 (Commands & Fixes)
