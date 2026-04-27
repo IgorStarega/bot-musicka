@@ -184,16 +184,20 @@ async def play(interaction: discord.Interaction, search: str):
     
     try:
         await interaction.followup.send(f"⏳ Pobieram... ({url_type})")
+        logger.info(f"[/play] Calling get_info for: {search[:50]}")
         info = await YTDLSource.get_info(search, loop=bot.loop)
+        logger.info(f"[/play] get_info returned type: {type(info).__name__}, is dict: {isinstance(info, dict)}")
         
         # Bezpieczna obsługa None i empty
         if not isinstance(info, dict):
+            logger.warning(f"[/play] Info is not dict! Type: {type(info).__name__}")
             info = {"entries": []}
         
         entries = info.get("entries", [])
-        logger.info(f"✅ /play: {len(entries)} wpisów znaleźliśmy")
+        logger.info(f"[/play] Entries count: {len(entries)}")
         
         if not entries:
+            logger.warning(f"[/play] No entries found, sending error response")
             await interaction.followup.send(f"❌ Brak utworów ({url_type})")
             logger.warning(f"Brak: {search[:50]}")
             return

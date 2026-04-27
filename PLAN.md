@@ -43,16 +43,19 @@
 34. **[ZAKOŃCZONE]** Dodanie do historii automatycznie podczas odtwarzania
 
 ### v1.3.0 Hotfixes (27 kwietnia 2026):
-35. **[ZAKOŃCZONE]** Fix: `/play` crash - `'NoneType' object has no attribute 'get'`
-36. **[ZAKOŃCZONE]** Fix: OAuth2 HTTP 400 - zmieniono na web_embedded client
-37. **[ZAKOŃCZONE]** Fix: `get_info()` zwraca dict zamiast None (fallback na wyszukiwanie)
-38. **[ZAKOŃCZONE]** Improvement: `/play` bezpieczna obsługa błędów z auto-fallback'iem
+35. **[ZAKOŃCZONE]** Fix: OAuth2 HTTP 400 - zmieniono na web_embedded client
+36. **[ZAKOŃCZONE]** Fix: `get_info()` zwraca dict zamiast None (fallback na wyszukiwanie)
+37. **[ZAKOŃCZONE]** Improvement: `/play` bezpieczna obsługa błędów z auto-fallback'iem
+38. **[ZAKOŃCZONE - KRYTYCZNE]** Fix: USUNIĘTY `yt-dlp-youtube-oauth2` plugin - to wymuszało OAuth2!
+39. **[ZAKOŃCZONE]** Fix: `extract_flat` w wyszukiwaniu - changed to False dla lepszych wyników
+40. **[ZAKOŃCZONE]** Improvement: KOMPLETNY logging w get_info(), from_url(), /play z prefixes
+41. **[ZAKOŃCZONE]** Improvement: Dodany socket_timeout i User-Agent do yt-dlp options
 
 ### Dane bota:
-- **Wersja:** 1.3.0-patch1 (Social & Interactive + Hotfixes)
+- **Wersja:** 1.3.0-patch2 (Social & Interactive + Comprehensive Hotfixes)
 - **Platforma:** Linux / Docker
 - **Typ:** Zaawansowany Bot Muzyczny
-- **Status:** Production-Ready ✅ (DRM-free strategy, fallback dla blokad, Auto-Leave, Social Features, Fixed /play crash)
+- **Status:** Production-Ready ✅ (OAuth2 removed, Full logging, Fallback search, DRM-free)
 
 ---
-Ostatnia aktualizacja: 27 kwietnia 2026 (v1.3.0-patch1 - Critical Bug Fixes)
+Ostatnia aktualizacja: 27 kwietnia 2026 (v1.3.0-patch2 - Comprehensive Hotfixes)

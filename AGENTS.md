@@ -140,10 +140,12 @@ bot-musicka/
 ## 🎵 Specifiki Bot-Musicka
 
 ### Strategie YouTube
-- **Client priority:** `["web_embedded"]` (single stable client)
-- **Fallback:** Jeśli 152-18 (unavailable), szukaj na YouTube
+- **Client priority:** `["web_embedded", "tv_embedded", "android"]` (multiple stable clients for VPS resilience)
+- **Fallback:** Jeśli niedostępne, szukaj na YouTube (ytsearch fallback)
 - **Playlist:** `ignoreerrors: True` - pomijaj niedostępne wpisy
-- **HTTP 429:** FFmpeg parser + `-cookies config/cookies.txt` (zobacz YOUTUBE_429_FIX.md)
+- **socket_timeout:** 30 seconds (prevent hanging on YouTube)
+- **User-Agent:** Browser header (avoid bot detection)
+- **NO OAuth2:** `yt-dlp-youtube-oauth2` plugin REMOVED (was causing HTTP 400)
 
 ### Spotify Handling
 - **Track:** → Szukaj na YouTube (bez DRM)
@@ -410,4 +412,27 @@ Jeśli coś nie działa:
 
 ---
 
-**Ostatnia aktualizacja:** 27 kwietnia 2026 | **Status:** Aktywny | **Wersja:** v1.3.0 (Social & Interactive)
+## 📊 v1.3.0 Features (Social & Interactive)
+
+- **`/favorites`** - Pokaż ulubione utwory (JSON storage)
+- **`/history`** - Historia ostatnio granych (limit 50, wyświetl 20)
+- **`/nowplaying`** - Info o aktualnym utworze
+- **`/mystats`** - Statystyki użytkownika z embedem (rich embed)
+- **`/favorite add|remove`** - Zarządzanie ulubionymi (alpha)
+- **Tracking** - Automatyczne dodawanie do historii i skip count
+- **Storage** - JSON-based, persistent w `config/user_data/users.json`
+
+---
+
+## 🔧 v1.3.0-patch2 Hotfixes (27 kwietnia 2026)
+
+- ✅ **REMOVED:** `yt-dlp-youtube-oauth2` plugin (was forcing OAuth2)
+- ✅ **FIXED:** `extract_flat=False` for proper search results
+- ✅ **ADDED:** Comprehensive logging with [get_info], [from_url], [/play] prefixes
+- ✅ **ADDED:** `socket_timeout: 30` to prevent hanging
+- ✅ **ADDED:** User-Agent header to avoid bot detection
+- ✅ **FIXED:** Fallback search query extraction from URLs
+
+---
+
+**Ostatnia aktualizacja:** 27 kwietnia 2026 | **Status:** Aktywny | **Wersja:** v1.3.0-patch2 (Social & Interactive + Hotfixes)

@@ -2,4 +2,3 @@ discord.py[voice]
 yt-dlp
 python-dotenv
 requests
-yt-dlp-youtube-oauth2

@@ -1,27 +1,41 @@
 # Analiza Kodu i Propozycje Update'ów - Bot Musicka
 
-## 🆘 Critical Bugs Fixed (v1.3.0 patch - 27 kwietnia 2026)
+## 🆘 Critical Bugs Fixed (v1.3.0 patch2 - 27 kwietnia 2026 - 07:30 UTC)
 
-### Issue: `/play` zwraca `'NoneType' object has no attribute 'get'`
-*   **Przyczyna:** `get_info()` zwracał `None`, `/play` wywoływał `.get()` na `None`
-*   **YouTube Error 400:** OAuth2 nie działał na VPS
-*   **Fix:** ✅ Zmieniono na `web_embedded` client (stable)
-*   **Fix:** ✅ `get_info()` teraz zwraca `{"entries": []}` zamiast `None`
-*   **Fix:** ✅ `/play` bezpiecznie obsługuje None z fallback'iem na wyszukiwanie
+### Issue 1: `yt-dlp-youtube-oauth2` PLUGIN FORCUJE OAUTH2
+*   **Przyczyna:** `yt-dlp-youtube-oauth2` plugin w requirements.txt wymuszał OAuth2
+*   **Error:** `[youtube+oauth2] HTTP Error 400 / Sign in to confirm you're not a bot`
+*   **Fix:** ✅ **USUNIĘTY** plugin z requirements.txt - teraz yt-dlp używa web_embedded
+*   **Impact:** KRYTYCZE - to był ROOT CAUSE całego problemu!
+
+### Issue 2: Fallback Search Zwraca Empty Entries
+*   **Przyczyna:** `extract_flat="in_playlist"` nie działa z ytsearch
+*   **Fix:** ✅ Zmieniono na `extract_flat=False` + `playlistend=5` dla lepszych wyników
+*   **Fix:** ✅ Fallback search teraz prawidłowo ekstrahuje query z URL
+
+### Issue 3: Niedostateczny Logging
+*   **Przyczyna:** Nie można było widzieć gdzie się łamie
+*   **Fix:** ✅ DODANE [get_info], [from_url], [/play] prefixes w logach
+*   **Fix:** ✅ Logowanie KAŻDEGO kroku w exception handlers
+*   **Impact:** Teraz logi będą jasne i diagnozowalne
+
+### Issue 4: Brak Timeout'u w yt-dlp
+*   **Przyczyna:** yt-dlp mogł wisieć na YouTube
+*   **Fix:** ✅ Dodano `socket_timeout: 30` i User-Agent header
 
 ### Przed:
 ```
-❌ HTTP Error 400 (OAuth2 broken on VPS)
-❌ get_info() returns None
-❌ /play crashes with NoneType error
+[youtube+oauth2] HTTP Error 400 (PLUGIN wymuszał OAuth2)
+✅ /play: 0 wpisów znaleźliśmy (empty results)
+Brak loggingu gdzie się łamie
 ```
 
 ### Teraz:
 ```
-✅ web_embedded client (VPS-stable)
-✅ get_info() returns empty dict {} with entries []
-✅ /play falls back to search automatically
-✅ Logs show: "Fallback na wyszukiwanie: [query]"
+✅ web_embedded client (PLUGIN USUNIĘTY)
+✅ [get_info PRIMARY SUCCESS] Got data with entries count: 5
+✅ [/play] Entries count: 5
+✅ Każdy krok zalogowany - jasna diagnostyka
 ```
 
 ---

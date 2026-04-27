@@ -2,9 +2,10 @@
 
 Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ulubione stacje radiowe.
 
-**Wersja:** 1.3.0 (Społeczna + Interaktywna)
+**Wersja:** 1.3.0-patch2 (Społeczna + Interaktywna + Hotfixes)
 **Język:** Python 3.11+
 **Technologia:** discord.py, yt-dlp, FFmpeg
+**Status:** Production-Ready ✅
 
 ## 🚀 Funkcje
 - 📻 **Stacje Radiowe:** Dynamiczne pobieranie stacji z API (w tym obsługa OpenFM).

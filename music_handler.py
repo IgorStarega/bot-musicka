@@ -43,7 +43,7 @@ def is_spotify_track(url):
 # --- KONFIGURACJA YT-DLP ---
 
 def get_ydl_options(for_playlist=False):
-    """Opcje yt-dlp z web_embedded client (stabilny na VPS)."""
+    """Opcje yt-dlp z web_embedded client (stabilny na VPS) + timeout."""
     return {
         "format": "bestaudio/best",
         "noplaylist": False,
@@ -53,6 +53,10 @@ def get_ydl_options(for_playlist=False):
         "nocheckcertificate": True,
         "ignoreerrors": True if for_playlist else False,
         "extract_flat": False,
+        "socket_timeout": 30,  # Socket timeout 30s
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
         "extractor_args": {
             "youtube": {
                 "player_client": ["web_embedded", "tv_embedded", "android"],
@@ -62,8 +66,12 @@ def get_ydl_options(for_playlist=False):
     }
 
 def get_ydl_search_options():
+    """Opcje dla wyszukiwania - musi zwrócić entries zamiast single track"""
     opts = get_ydl_options(for_playlist=True)
-    opts["extract_flat"] = "in_playlist"
+    # Nie używaj extract_flat dla ytsearch - chcemy entries
+    opts["extract_flat"] = False
+    # Zwiększ limit wyników
+    opts["playlistend"] = 5
     return opts
 
 class YTDLSource(discord.PCMVolumeTransformer):
@@ -76,29 +84,38 @@ class YTDLSource(discord.PCMVolumeTransformer):
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=True):
         loop = loop or asyncio.get_event_loop()
+        logger.info(f"[from_url START] URL: {url[:60]}, stream={stream}")
         
         if url.startswith("ytsearch:") or not is_youtube_url(url):
             opts = get_ydl_search_options()
+            logger.info(f"[from_url] Using SEARCH options")
         else:
             opts = get_ydl_options()
+            logger.info(f"[from_url] Using standard options")
 
         try:
+            logger.info(f"[from_url] Attempting extract_info...")
             ydl = yt_dlp.YoutubeDL(opts)
             data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
+            logger.info(f"[from_url SUCCESS] Got data, has entries: {'entries' in data if data else False}")
         except Exception as e:
-            logger.warning(f"from_url błąd: {str(e)[:60]} - fallback na search")
+            logger.warning(f"[from_url EXCEPTION] {type(e).__name__}: {str(e)[:80]}")
             # Fallback: spróbuj wyszukać na YouTube
-            # Extrahuj query z URL
             query = url.split('/')[-1] if '/' in url else url
+            logger.info(f"[from_url FALLBACK] Searching for: {query[:50]}")
+            
             try:
                 search_opts = get_ydl_search_options()
+                logger.info(f"[from_url FALLBACK] Using search opts")
                 ydl_search = yt_dlp.YoutubeDL(search_opts)
                 data = await loop.run_in_executor(None, lambda: ydl_search.extract_info(f"ytsearch:{query}", download=False))
+                logger.info(f"[from_url FALLBACK SUCCESS] Got search results")
             except Exception as e2:
-                logger.error(f"from_url fallback failed: {query[:50]} - {str(e2)[:50]}")
+                logger.error(f"[from_url FALLBACK FAILED] {type(e2).__name__}: {str(e2)[:80]}")
                 return None
 
         if data is None or not data:
+            logger.warning(f"[from_url] Data is None or empty")
             return None
 
         if "entries" in data:
@@ -117,24 +134,41 @@ class YTDLSource(discord.PCMVolumeTransformer):
     async def get_info(cls, url, *, loop=None):
         """Pobierz info o URL - zwraca dict z entries lub empty dict"""
         loop = loop or asyncio.get_event_loop()
+        logger.info(f"[get_info START] URL: {url[:60]}")
+        
         opts = get_ydl_search_options()
+        logger.info(f"[get_info] Using search options: extract_flat={opts.get('extract_flat')}, player_client={opts.get('extractor_args', {}).get('youtube', {}).get('player_client')}")
+        
         try:
+            logger.info(f"[get_info] Attempting primary extract_info...")
             with yt_dlp.YoutubeDL(opts) as ydl:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+            logger.info(f"[get_info PRIMARY SUCCESS] Got data with entries count: {len(data.get('entries', [])) if data else 0}")
             if data:
                 return data
+            logger.warning(f"[get_info] Primary returned None, using empty dict")
             return {"entries": []}
+            
         except Exception as e:
-            logger.warning(f"get_info fallback: {str(e)[:60]}")
+            logger.warning(f"[get_info EXCEPTION] {type(e).__name__}: {str(e)[:80]}")
             # Fallback: szukaj na YouTube zamiast dawać up
-            # Extrahuj query z URL (np. "track_id" z https://open.spotify.com/track/track_id)
             query = url.split('/')[-1] if '/' in url else url
-            logger.info(f"📍 Fallback na wyszukiwanie: {query[:50]}")
+            logger.info(f"[get_info FALLBACK START] Query: {query[:50]}")
+            
             try:
                 search_url = f"ytsearch:{query}"
-                with yt_dlp.YoutubeDL(opts) as ydl:
+                logger.info(f"[get_info FALLBACK] Searching: {search_url}")
+                
+                fallback_opts = get_ydl_search_options()
+                # Nie zmieniaj extract_flat - chcemy entries!
+                logger.info(f"[get_info FALLBACK] Opts: extract_flat={fallback_opts.get('extract_flat')}, playlistend={fallback_opts.get('playlistend')}")
+                
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                     data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
+                
+                logger.info(f"[get_info FALLBACK SUCCESS] Got data with entries: {len(data.get('entries', [])) if data else 0}")
                 return data if data else {"entries": []}
+                
             except Exception as e2:
-                logger.warning(f"get_info fallback search also failed: {str(e2)[:60]}")
+                logger.error(f"[get_info FALLBACK FAILED] {type(e2).__name__}: {str(e2)[:80]}")
                 return {"entries": []}
