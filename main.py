@@ -198,6 +198,9 @@ async def play(interaction: discord.Interaction, search: str):
             info = {"entries": []}
         
         entries = info.get("entries", [])
+        # Defensywnie: obsłuż single video dict bez klucza "entries" (yt-dlp dla direct URL)
+        if not entries and isinstance(info, dict) and ("url" in info or "formats" in info):
+            entries = [info]
         logger.info(f"[/play] Entries count: {len(entries)}")
         
         if not entries:

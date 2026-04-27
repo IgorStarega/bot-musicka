@@ -41,3 +41,22 @@ bot-musicka  | 2026-04-27 07:37:34,158:INFO:MusicBot: [/play] Entries count: 0
 bot-musicka  | 2026-04-27 07:37:34,158:WARNING:MusicBot: [/play] No entries found, sending error response
 bot-musicka  | 2026-04-27 07:37:34,598:WARNING:MusicBot: Brak: https://www.youtube.com/watch?v=Rryet816_t8
 wilson@skrzynka-z-bananami:~/docker/bot-musicka$ 
+---
+
+## ✅ Status naprawy (27 kwietnia 2026 - v1.4.0)
+
+### Problem 1: Spotify DRM Error → "Brak"
+- **Przyczyna**: Stary kod próbował ekstrakcję Spotify bezpośrednio przez yt-dlp → DRM error → zwracało puste entries
+- **Fix v1.3.0**: Dodano branch Spotify w `get_info()` - wykrywa URL Spotify, pobiera tytuł przez oEmbed API, szuka na YouTube
+- **Status**: ✅ NAPRAWIONE
+
+### Problem 2: YouTube "Sign in to confirm you're not a bot" → "Brak"
+- **Przyczyna 1**: `get_info()` zwracało puste entries gdy yt-dlp blokował
+- **Fix v1.3.0**: Syntetyczny wpis gdy yt-dlp zwróci puste dane - `from_url()` próbuje ponownie z cookies + iOS client
+- **Przyczyna 2 (bug)**: Gdy yt-dlp **pomyślnie** wyciągnął film, zwracał single video dict bez `"entries"` → `/play` widział `entries=[]` → "Brak"
+- **Fix v1.4.0**: Normalizacja w `get_info()` - single video dict jest owijany w `{"entries": [data]}`
+- **Fix v1.4.0**: Defensywna obsługa w `/play` - jeśli `info` zawiera `url` lub `formats` bez `entries`, traktowane jako single entry
+- **Status**: ✅ NAPRAWIONE
+
+### Uwaga: yt-dlp ERROR linie w logach
+`ERROR: [youtube] ... Sign in to confirm you're not a bot` nadal może pojawiać się w logach - to jest log BIBLIOTEKI yt-dlp, nie błąd bota. Bot obsługuje tę sytuację przez synthetic entry → retry z iOS client + cookies.

@@ -198,6 +198,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.info(f"[get_info PRIMARY SUCCESS] Got data with entries count: {len(data.get('entries', [])) if data else 0}")
             # Sprawdź czy data zawiera użyteczne wpisy
             if data and (data.get("entries") or "url" in data or "formats" in data):
+                # Normalizacja: yt-dlp dla bezpośredniego URL zwraca single dict bez "entries"
+                # Owijamy w entries żeby /play mógł zawsze używać info["entries"]
+                if "entries" not in data:
+                    data = {"entries": [data], "title": data.get("title", "")}
                 return data
             logger.warning(f"[get_info] Primary zwróciło puste dane, próbuję fallback")
         except Exception as e:
@@ -231,7 +235,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
 
             logger.info(f"[get_info FALLBACK SUCCESS] Got data with entries: {len(data.get('entries', [])) if data else 0}")
-            return data if data else {"entries": []}
+            if not data:
+                return {"entries": []}
+            # Normalizacja dla fallback też
+            if "entries" not in data and ("url" in data or "formats" in data):
+                data = {"entries": [data], "title": data.get("title", "")}
+            return data
 
         except Exception as e2:
             logger.error(f"[get_info FALLBACK FAILED] {type(e2).__name__}: {str(e2)[:80]}")
