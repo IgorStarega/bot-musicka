@@ -28,9 +28,10 @@ Ten plik definiuje reguły, konwencje i procedury dla wszystkich agentów (w tym
 
 ```
 bot-musicka/
-├── main.py                 # Discord bot core + all commands
+├── main.py                 # Discord bot core + all commands (v1.3.0: 13 komend)
 ├── music_handler.py        # yt-dlp integration + audio streaming
 ├── config.py               # Environment vars + Radio API
+├── user_storage.py         # User data storage (v1.3.0: favorites, history, stats - JSON based)
 ├── requirements.txt        # Python dependencies
 ├── docker-compose.yml      # Docker orchestration
 ├── Dockerfile              # Multi-stage build
@@ -41,7 +42,10 @@ bot-musicka/
 ├── AGENTS.md               # This file
 ├── .env.example            # Env template
 ├── .gitignore              # Git rules
-└── config/                 # Persistent files (cookies, config)
+└── config/                 # Persistent files (cookies, user_data/)
+    ├── cookies.txt         # YouTube cookies (ignored)
+    └── user_data/          # User storage (favorites, history) - JSON files
+        └── users.json      # All user data combined
 ```
 
 **Reguła:** Nie dodawaj nowych plików bez dyskusji z użytkownikiem!
@@ -89,6 +93,23 @@ bot-musicka/
 3. Helper functions (get_radio_stations, etc.)
 4. Configuration dicts (RADIO_STATIONS, etc.)
 5. Exports (DISCORD_TOKEN, etc.)
+```
+
+### Struktura Pliku - user_storage.py (v1.3.0+)
+```
+1. Imports
+2. Logging setup
+3. STORAGE_DIR + USERS_FILE constants
+4. Storage utilities (ensure_storage_dir, load_users, save_users)
+5. User data functions:
+   - get_user_data(user_id) - pobierz lub utwórz
+   - add_favorite(user_id, track_url, track_title) - dodaj ulubione
+   - remove_favorite(user_id, track_url) - usuń ulubione
+   - get_favorites(user_id) - pobierz listę
+   - add_to_history(user_id, track_url, track_title) - dodaj do historii
+   - get_history(user_id, limit=20) - pobierz historię
+   - get_user_stats(user_id) - pobierz statystyki
+   - increment_skip_count(user_id) - zwiększ skip'i
 ```
 
 ---
@@ -149,6 +170,15 @@ logger.error("Full error message with context")
 logger.warning("Something might be wrong")
 logger.info("Action completed successfully")
 ```
+
+### v1.3.0 Features (Social & Interactive)
+- **`/favorites`** - Pokaż ulubione utwory (JSON storage)
+- **`/history`** - Historia ostatnio granych (limit 50, wyświetl 20)
+- **`/nowplaying`** - Info o aktualnym utworze
+- **`/mystats`** - Statystyki użytkownika z embedem (rich embed)
+- **`/favorite add|remove`** - Zarządzanie ulubionymi (alpha)
+- **Tracking** - Automatyczne dodawanie do historii i skip count
+- **Storage** - JSON-based, persistent w `config/user_data/users.json`
 
 ---
 
@@ -380,4 +410,4 @@ Jeśli coś nie działa:
 
 ---
 
-**Ostatnia aktualizacja:** 2026-04-23 | **Status:** Aktywny
+**Ostatnia aktualizacja:** 27 kwietnia 2026 | **Status:** Aktywny | **Wersja:** v1.3.0 (Social & Interactive)

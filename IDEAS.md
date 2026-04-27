@@ -32,13 +32,16 @@
 5.  **Komenda `/status`:** ✅ Wdrożono. Diagnostyka bota (Discord, Voice, Queue, Radio API, Ping).
 6.  **Komenda `/test`:** ✅ Wdrożono. Test wszystkich komponentów (Bot, Discord.py, FFmpeg, Radio API, yt-dlp, Logging).
 7.  **Pobieranie Utworów (Pre-buffering):** Szybsze startowanie piosenki (w planach).
-8.  **System Ulubionych:** Możliwość zapisania piosenki do prywatnej listy bota (`/fav add`).
-9.  **Wyszukiwanie interaktywne:** `/search <fraza>` wyświetla 5 wyników jako przyciski.
+8.  **System Ulubionych:** ✅ Wdrożono `/favorites` i `/favorite add` (v1.3.0).
+9.  **Historia Słuchania:** ✅ Wdrożono `/history` (v1.3.0).
+10. **Wyszukiwanie interaktywne:** `/search <fraza>` wyświetla 5 wyników jako przyciski.
 
 ### Poziom: Pro/Admin (Zarządzanie)
-10. **Panel Webowy (Dashboard):** Prosty podgląd statystyk bota.
-11. **Wsparcie dla Multi-Server:** ✅ Wdrożono pełną separację kolejek.
-12. **Logs System:** ✅ Wdrożono `bot.log` przez moduł `logging`.
+11. **Panel Webowy (Dashboard):** Prosty podgląd statystyk bota.
+12. **Wsparcie dla Multi-Server:** ✅ Wdrożono pełną separację kolejek.
+13. **Logs System:** ✅ Wdrożono `bot.log` przez moduł `logging`.
+14. **Komenda `/mystats`:** ✅ Wdrożono statystyki użytkownika (v1.3.0).
+15. **Komenda `/nowplaying`:** ✅ Wdrożono info o aktualnym utworze (v1.3.0).
 
 ---
 

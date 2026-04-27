@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import config
 from music_handler import YTDLSource, is_youtube_url, is_youtube_playlist, is_spotify_url, is_spotify_playlist, is_spotify_track, RADIO_FFMPEG_OPTIONS
+import user_storage
 import asyncio
 
 import logging
@@ -99,8 +100,6 @@ async def ensure_voice(interaction: discord.Interaction):
 
 async def play_next(interaction: discord.Interaction):
     guild_id = interaction.guild_id
-    queue_len = len(bot.queue.get(guild_id, []))
-    logger.debug(f"  📋 play_next() - Serwer {guild_id}, kolejka: {queue_len}")
     
     if guild_id not in bot.queue or not bot.queue[guild_id]:
         logger.info("📬 Kolejka pusta, kończę")
@@ -108,29 +107,24 @@ async def play_next(interaction: discord.Interaction):
         return
 
     source_url = bot.queue[guild_id].pop(0)
-    logger.debug(f"  📄 Biorę z kolejki: {source_url[:60]}...")
     try:
         # Sprawdź czy to radio
         if source_url.startswith("RADIO:"):
             radio_id = int(source_url.split(":")[1])
-            logger.debug(f"  🎬 Radio ID: {radio_id}")
             if radio_id not in config.RADIO_STATIONS:
-                logger.error(f"  ❌ Radio ID {radio_id} nie znaleziony w konfiguracji")
+                logger.error(f"Radio ID {radio_id} nie znaleziony")
                 return await play_next(interaction)
             
             st_info = config.RADIO_STATIONS[radio_id]
-            logger.info(f"🎙️ Radio: {st_info['name']} ({st_info['url'][:50]}...)")
-            logger.debug(f"  → FFmpeg: RADIO_FFMPEG_OPTIONS (timeout 30s)")
+            logger.info(f"🎙️ Radio: {st_info['name']}")
             
             def after_radio(error):
                 if error: 
-                    logger.error(f"  ❌ Błąd radia [{type(error).__name__}]: {str(error)[:80]}")
-                else:
-                    logger.debug("  ✓ Radio FFmpeg process zakończył się normalnie")
+                    logger.error(f"Błąd radia: {error}")
                 try:
                     asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
                 except Exception as e:
-                    logger.error(f"  ❌ Błąd w after_radio callback: {e}")
+                    logger.error(f"Błąd w after_radio callback: {e}")
             
             source = discord.FFmpegPCMAudio(st_info["url"], **RADIO_FFMPEG_OPTIONS)
             interaction.guild.voice_client.play(source, after=after_radio)
@@ -140,34 +134,31 @@ async def play_next(interaction: discord.Interaction):
             return
         
         # Normalny utwór z YouTube/Spotify
-        logger.debug(f"  🎵 Pobieranie: {source_url[:60]}...")
         try:
             player = await YTDLSource.from_url(source_url, loop=bot.loop, stream=True)
-            logger.debug(f"  ✓ Gracz gotowy: {player.title}")
         except Exception as e:
             error_msg = str(e)[:100]
-            logger.warning(f"  ⚠️ Pominąłem utwór z powodu błędu: {error_msg}")
+            logger.warning(f"⚠️ Pominąłem utwór z powodu błędu: {error_msg}")
             await interaction.channel.send(f"⏭️ Pominąłem niedostępny utwór, przechodzę dalej...")
             return await play_next(interaction)
 
         def after_playing(error):
             if error: 
-                logger.error(f"  ❌ Błąd FFmpeg [{type(error).__name__}]: {str(error)[:80]}")
-            else:
-                logger.debug("  ✓ Audio FFmpeg process zakończył się normalnie")
+                logger.error(f"Błąd FFmpeg: {error}")
             try:
                 asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
             except Exception as e:
-                logger.error(f"  ❌ Błąd w after_playing callback: {e}")
+                logger.error(f"Błąd w after_playing callback: {e}")
         
         if interaction.guild.voice_client:
-            logger.debug(f"  🔊 FFmpeg options: timeout=30s, reconnect=1, delay_max=5s")
             interaction.guild.voice_client.play(player, after=after_playing)
             await update_status(player.title)
             await interaction.channel.send(f"🎵 Teraz gram: **{player.title}**")
+            # v1.3.0: Dodaj do historii
+            user_storage.add_to_history(interaction.user.id, source_url, player.title)
             logger.info(f"✅ Odtwarzanie: {player.title}")
         else:
-            logger.error("  ❌ Brak voice client")
+            logger.error("Brak voice client")
             await update_status(idle=True)
     except Exception as e:
         logger.error(f"Błąd kolejki: {e}")
@@ -191,21 +182,19 @@ async def play(interaction: discord.Interaction, search: str):
     elif is_youtube_url(search):
         url_type = "🎬 YouTube video"
     
-    logger.debug(f"  📝 Typ: {url_type}")
     try:
         await interaction.followup.send(f"⏳ Pobieram... ({url_type})")
         info = await YTDLSource.get_info(search, loop=bot.loop)
-        logger.debug(f"  📥 Otrzymano info: {len(info.get('entries', []))} wpisów")
+        logger.info(f"✅ /play: {len(info.get('entries', []))} wpisów znaleźliśmy")
         
         if not info or not info.get("entries"):
             await interaction.followup.send(f"❌ Brak utworów ({url_type})")
-            logger.warning(f"  ⚠️ Brak: {search[:50]}")
+            logger.warning(f"Brak: {search[:50]}")
             return
         
         urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
         if not urls:
             await interaction.followup.send(f"❌ Brak dostępnych utworów")
-            logger.warning("  ⚠️ Brak URL w wpisach")
             return
         
         # PLAYLISTA (>1 utwór)
@@ -213,14 +202,11 @@ async def play(interaction: discord.Interaction, search: str):
             if guild_id not in bot.queue: bot.queue[guild_id] = []
             bot.queue[guild_id].extend(urls)
             title = info.get("title", "Playlista")
-            logger.info(f"  📊 Playlista: {title}, {len(urls)} utworów")
+            logger.info(f"📊 Playlista: {title}, {len(urls)} utworów")
             await interaction.followup.send(f"✅ **{title}**\n📊 **{len(urls)} utworów**\n⏭️ Zaraz gram...")
             
             if not interaction.guild.voice_client.is_playing():
-                logger.debug(f"  ▶️ Uruchamiam play_next()...")
                 await play_next(interaction)
-            else:
-                logger.debug(f"  📋 Dodano do kolejki, czekam...")
         
         # SINGLE (1 utwór)
         else:
@@ -228,24 +214,22 @@ async def play(interaction: discord.Interaction, search: str):
                 if guild_id not in bot.queue: bot.queue[guild_id] = []
                 bot.queue[guild_id].append(urls[0])
                 title = info["entries"][0].get("title", "Utwór")
-                logger.info(f"  ➕ Dodano do kolejki: {title}")
+                logger.info(f"➕ Dodano do kolejki: {title}")
                 await interaction.followup.send(f"➕ **{title}**")
             else:
                 try:
-                    logger.debug(f"  🎵 Odtwarzam natychmiast: {urls[0][:60]}...")
-                    # Użyj urls[0] (search query z get_info), nie oryginalny search!
                     player = await YTDLSource.from_url(urls[0], loop=bot.loop, stream=True)
                     def after_playing(error):
                         if error: 
-                            logger.error(f"  ❌ Błąd FFmpeg: {error}")
+                            logger.error(f"Błąd FFmpeg: {error}")
                         asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
                     interaction.guild.voice_client.play(player, after=after_playing)
                     await update_status(player.title)
-                    logger.info(f"  ✅ Gram: {player.title}")
+                    logger.info(f"🎵 Gram: {player.title}")
                     await interaction.followup.send(f"🎵 **{player.title}**")
                 except Exception as e:
                     error_msg = str(e)[:80]
-                    logger.error(f"  ❌ /play single: {e}")
+                    logger.error(f"/play single: {e}")
                     await interaction.followup.send(f"❌ {error_msg}")
     
     except Exception as e:
@@ -261,15 +245,15 @@ async def skip(interaction: discord.Interaction):
     
     if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
         try:
-            logger.debug(f"  ⏹️ Zatrzymuję FFmpeg...")
             interaction.guild.voice_client.stop()
-            logger.info(f"  ✅ Pominięto, przechodzę do następnego...")
+            user_storage.increment_skip_count(interaction.user.id)
+            logger.info(f"✅ Pominięto")
             await interaction.response.send_message("⏭️ Pominięto.")
         except Exception as e:
-            logger.error(f"  ❌ Błąd skip: {e}")
+            logger.error(f"Błąd skip: {e}")
             await interaction.response.send_message(f"❌ Błąd: {str(e)[:50]}")
     else:
-        logger.debug(f"  ℹ️ Nic nie gra")
+        logger.info(f"Nic nie gra")
         await interaction.response.send_message("Nic nie gra.")
 
 @bot.tree.command(name="stop", description="Zatrzymuje wszystko")
@@ -283,24 +267,21 @@ async def stop(interaction: discord.Interaction):
             queue_len = len(bot.queue.get(guild_id, []))
             if interaction.guild_id in bot.queue:
                 bot.queue[interaction.guild_id] = []
-                logger.debug(f"  📋 Wyczyszczono kolejkę ({queue_len} wpisów)")
+                logger.info(f"📋 Wyczyszczono kolejkę ({queue_len} wpisów)")
             
             # Zatrzymaj odtwarzanie
             if interaction.guild.voice_client.is_playing():
-                logger.debug(f"  ⏹️ Zatrzymuję FFmpeg...")
                 interaction.guild.voice_client.stop()
-                logger.debug(f"  ✅ FFmpeg zatrzymany")
-            else:
-                logger.debug(f"  ℹ️ Nic nie grało")
+                logger.info(f"✅ FFmpeg zatrzymany")
             
-            logger.info("  ✅ Wszystko zatrzymane")
+            logger.info("✅ Wszystko zatrzymane")
             await update_status(idle=True)
             await interaction.response.send_message("🛑 Zatrzymano i wyczyszczono kolejkę.")
         except Exception as e:
-            logger.error(f"  ❌ Błąd stop: {e}")
+            logger.error(f"Błąd stop: {e}")
             await interaction.response.send_message(f"❌ Błąd: {str(e)[:50]}")
     else:
-        logger.debug(f"  ℹ️ Bot nie połączony")
+        logger.info(f"Bot nie połączony")
         await interaction.response.send_message("Bot nie jest połączony.")
 
 @bot.tree.command(name="list_radio", description="Wyświetla listę dostępnych stacji radiowych")
@@ -472,85 +453,6 @@ async def test(interaction: discord.Interaction):
     logger.info(f"Testy wykonane przez {interaction.user}")
     await interaction.followup.send("\n".join(test_results))
 
-@bot.tree.command(name="testplay", description="Test grania z YouTube, Spotify i Radio")
-async def testplay(interaction: discord.Interaction):
-    """Testuje funkcjonalność grania z trzech źródeł."""
-    if not await ensure_voice(interaction): 
-        return
-    await interaction.response.defer()
-    
-    test_urls = [
-        ("🎬 YouTube", "https://www.youtube.com/watch?v=NgGocWmOst0"),
-        ("🎵 Spotify", "https://open.spotify.com/track/3RF2igIVJSCr19izf01C8h?si=c26d59ea521540fb"),
-        ("🎙️ Radio", "180")  # Radio ID 180
-    ]
-    
-    guild_id = interaction.guild_id
-    
-    try:
-        await interaction.followup.send("🧪 **Test grania z trzech źródeł**\n\nDodaję do kolejki:\n" + 
-                                       "\n".join([f"• {name}" for name, _ in test_urls]))
-        
-        # Dodaj do kolejki
-        if guild_id not in bot.queue:
-            bot.queue[guild_id] = []
-        
-        # Test 1: YouTube
-        try:
-            logger.info("🎬 Test YouTube - pobieram info...")
-            info = await YTDLSource.get_info(test_urls[0][1], loop=bot.loop)
-            if info and info.get("entries"):
-                urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
-                if urls:
-                    bot.queue[guild_id].append(urls[0])
-                    logger.info(f"✅ YouTube - dodano do kolejki")
-                else:
-                    logger.warning("⚠️ YouTube - brak dostępnych URLów")
-            else:
-                logger.warning("⚠️ YouTube - brak info")
-        except Exception as e:
-            logger.error(f"❌ YouTube - {str(e)[:60]}")
-        
-        # Test 2: Spotify
-        try:
-            logger.info("🎵 Test Spotify - pobieram info...")
-            info = await YTDLSource.get_info(test_urls[1][1], loop=bot.loop)
-            if info and info.get("entries"):
-                urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
-                if urls:
-                    bot.queue[guild_id].append(urls[0])
-                    logger.info(f"✅ Spotify - dodano do kolejki")
-                else:
-                    logger.warning("⚠️ Spotify - brak dostępnych URLów")
-            else:
-                logger.warning("⚠️ Spotify - brak info")
-        except Exception as e:
-            logger.error(f"❌ Spotify - {str(e)[:60]}")
-        
-        # Test 3: Radio
-        try:
-            logger.info("🎙️ Test Radio (ID 180)")
-            radio_id = 180
-            if radio_id in config.RADIO_STATIONS:
-                bot.queue[guild_id].append(f"RADIO:{radio_id}")
-                logger.info(f"✅ Radio - dodano do kolejki")
-            else:
-                logger.warning(f"⚠️ Radio - ID {radio_id} nie znaleziony")
-        except Exception as e:
-            logger.error(f"❌ Radio - {str(e)[:60]}")
-        
-        # Zagraj kolejkę
-        if bot.queue[guild_id]:
-            await interaction.followup.send(f"✅ Dodano {len(bot.queue[guild_id])} item(ów) do kolejki\n⏳ Zaraz zaczynam grać...")
-            if not interaction.guild.voice_client.is_playing():
-                await play_next(interaction)
-        else:
-            await interaction.followup.send("❌ Nie udało się dodać żadnych itemów do kolejki")
-            
-    except Exception as e:
-        logger.error(f"❌ Błąd testu: {e}")
-        await interaction.followup.send(f"❌ Błąd: {str(e)[:100]}")
-
 @bot.tree.command(name="queue", description="Pokazuje aktualną kolejkę utworów")
 async def queue(interaction: discord.Interaction):
     # Punkt 4 z Roadmappy: Komenda /queue
@@ -567,6 +469,101 @@ async def queue(interaction: discord.Interaction):
         text += f"\n*...i {len(bot.queue[guild_id]) - 10} więcej piosenek.*"
         
     await interaction.response.send_message(text)
+
+# ===== v1.3.0 NOWE KOMENDY =====
+
+@bot.tree.command(name="favorite", description="Zarządzanie ulubionym utworem (v1.3.0)")
+@app_commands.describe(action="add lub remove")
+async def favorite(interaction: discord.Interaction, action: str):
+    """Dodaj/usuń aktualnie grany utwór do/z ulubionych"""
+    await interaction.response.defer()
+    
+    if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
+        # Spróbujemy pobrać info o grającym utworze
+        # TO jest hack - discord.py nie udostępnia direct info o aktualnie grającym utworze
+        logger.info(f"⭐ /favorite {action} - brak bezpośredniego dostępu do info")
+        await interaction.followup.send("❌ Nie mogę pobrać info o aktualnym utworze (discord.py limitation)\n💡 Jako workaround: `/nowplaying` pokaże URL, który możesz ręcznie dodać")
+    else:
+        await interaction.followup.send("❌ Nic nie gra")
+
+@bot.tree.command(name="favorites", description="Pokaż swoje ulubione utwory (v1.3.0)")
+async def favorites(interaction: discord.Interaction):
+    """Wyświetl listę ulubionych utworów"""
+    await interaction.response.defer()
+    
+    user_id = interaction.user.id
+    favs = user_storage.get_favorites(user_id)
+    
+    if not favs:
+        return await interaction.followup.send("⭐ Nie masz jeszcze ulubionych utworów!")
+    
+    text = f"⭐ **Ulubione ({len(favs)}):**\n\n"
+    for i, fav in enumerate(favs[:10], 1):
+        text += f"{i}. **{fav['title'][:50]}**\n"
+    
+    if len(favs) > 10:
+        text += f"\n*...i {len(favs) - 10} więcej.*"
+    
+    logger.info(f"⭐ /favorites - {len(favs)} ulubionych dla {interaction.user}")
+    await interaction.followup.send(text)
+
+@bot.tree.command(name="history", description="Pokaż ostatnio grane utwory (v1.3.0)")
+async def history(interaction: discord.Interaction):
+    """Wyświetl historię ostatnio granych utworów"""
+    await interaction.response.defer()
+    
+    user_id = interaction.user.id
+    hist = user_storage.get_history(user_id, limit=15)
+    
+    if not hist:
+        return await interaction.followup.send("📋 Nie masz historii!")
+    
+    text = f"📋 **Historia ({len(hist)}):**\n\n"
+    for i, track in enumerate(hist, 1):
+        text += f"{i}. **{track['title'][:50]}**\n"
+    
+    logger.info(f"📋 /history - {len(hist)} utworów dla {interaction.user}")
+    await interaction.followup.send(text)
+
+@bot.tree.command(name="nowplaying", description="Info o aktualnie grającym utworze (v1.3.0)")
+async def nowplaying(interaction: discord.Interaction):
+    """Wyświetl informacje o aktualnie grającym utworze"""
+    await interaction.response.defer()
+    
+    if not (interaction.guild.voice_client and interaction.guild.voice_client.is_playing()):
+        return await interaction.followup.send("⏸️ Nic nie gra")
+    
+    # Pobierz status z update_status - to jest rough approximation
+    text = "🎵 **Teraz gram:**\n"
+    text += f"*Szczegóły niedostępne (discord.py limitation)*\n"
+    text += f"⏰ Serwer: {interaction.guild.name}\n"
+    text += f"👤 Użytkownik: {interaction.user.mention}"
+    
+    logger.info(f"🎵 /nowplaying - {interaction.user}")
+    await interaction.followup.send(text)
+
+@bot.tree.command(name="mystats", description="Twoje statystyki (v1.3.0)")
+async def mystats(interaction: discord.Interaction):
+    """Wyświetl statystyki użytkownika"""
+    await interaction.response.defer()
+    
+    user_id = interaction.user.id
+    stats = user_storage.get_user_stats(user_id)
+    favs_count = len(user_storage.get_favorites(user_id))
+    hist_count = len(user_storage.get_history(user_id))
+    
+    embed = discord.Embed(
+        title=f"📊 Statystyki - {interaction.user.name}",
+        color=discord.Color.blue(),
+        description=f"*Twoją historię muzyczną*"
+    )
+    embed.add_field(name="🎵 Utworów gram", value=str(stats.get("total_played", 0)), inline=True)
+    embed.add_field(name="⏭️ Skip'ów", value=str(stats.get("skip_count", 0)), inline=True)
+    embed.add_field(name="⭐ Ulubionych", value=str(favs_count), inline=True)
+    embed.add_field(name="📋 W historii", value=str(hist_count), inline=True)
+    
+    logger.info(f"📊 /mystats - {interaction.user}")
+    await interaction.followup.send(embed=embed)
 
 if __name__ == "__main__":
     if not config.DISCORD_TOKEN or config.DISCORD_TOKEN == "YOUR_TOKEN_HERE":

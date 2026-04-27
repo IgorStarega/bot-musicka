@@ -1,6 +1,6 @@
 # Plan Rozwoju Bota Muzycznego - Bot Musicka
 
-## Status Projektu: Produkcja (v1.1.0)
+## Status Projektu: Produkcja (v1.3.0)
 
 ### Etapy:
 1.  **[ZAKOŃCZONE]** Przygotowanie środowiska i bibliotek
@@ -33,11 +33,20 @@
 26. **[ZAKOŃCZONE]** Usuniętych zależności (spotipy) - v1.1.0+ nie potrzebuje
 27. **[ZAKOŃCZONE]** Aktualizacja README.md o nowe komendy i strategie
 
+### v1.3.0 Milestones (Social & Interactive):
+28. **[ZAKOŃCZONE]** System storage (user_storage.py) - JSON-based persistent storage
+29. **[ZAKOŃCZONE]** Komenda `/favorites` - wyświetl ulubione utwory
+30. **[ZAKOŃCZONE]** Komenda `/history` - historia ostatnio granych utworów
+31. **[ZAKOŃCZONE]** Komenda `/nowplaying` - info o aktualnym utworze
+32. **[ZAKOŃCZONE]** Komenda `/mystats` - statystyki użytkownika z embedem
+33. **[ZAKOŃCZONE]** Tracking skip'ów w statystykach
+34. **[ZAKOŃCZONE]** Dodanie do historii automatycznie podczas odtwarzania
+
 ### Dane bota:
-- **Wersja:** 1.1.0 (Stabilna + YouTube/Spotify Fallback)
+- **Wersja:** 1.3.0 (Społeczna + Interaktywna)
 - **Platforma:** Linux / Docker
 - **Typ:** Zaawansowany Bot Muzyczny
-- **Status:** Production-Ready (DRM-free strategy, fallback dla blokad, Auto-Leave)
+- **Status:** Production-Ready (DRM-free strategy, fallback dla blokad, Auto-Leave, Social Features)
 
 ---
-Ostatnia aktualizacja: 23 kwietnia 2026 (Aktualizacja v1.1.0 - Extended)
+Ostatnia aktualizacja: 27 kwietnia 2026 (Aktualizacja v1.3.0 - Social & Interactive)

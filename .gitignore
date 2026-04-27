@@ -2,3 +2,5 @@
 __pycache__/
 .env
 *.log
+config/cookies.txt
+config/
