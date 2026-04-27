@@ -1,5 +1,31 @@
 # Analiza Kodu i Propozycje Update'ów - Bot Musicka
 
+## 🆘 Critical Bugs Fixed (v1.3.0 patch - 27 kwietnia 2026)
+
+### Issue: `/play` zwraca `'NoneType' object has no attribute 'get'`
+*   **Przyczyna:** `get_info()` zwracał `None`, `/play` wywoływał `.get()` na `None`
+*   **YouTube Error 400:** OAuth2 nie działał na VPS
+*   **Fix:** ✅ Zmieniono na `web_embedded` client (stable)
+*   **Fix:** ✅ `get_info()` teraz zwraca `{"entries": []}` zamiast `None`
+*   **Fix:** ✅ `/play` bezpiecznie obsługuje None z fallback'iem na wyszukiwanie
+
+### Przed:
+```
+❌ HTTP Error 400 (OAuth2 broken on VPS)
+❌ get_info() returns None
+❌ /play crashes with NoneType error
+```
+
+### Teraz:
+```
+✅ web_embedded client (VPS-stable)
+✅ get_info() returns empty dict {} with entries []
+✅ /play falls back to search automatically
+✅ Logs show: "Fallback na wyszukiwanie: [query]"
+```
+
+---
+
 ## 🔍 Analiza Błędów i Ryzyk (Code Audit)
 
 ### 1. Brak `cookies.txt` w repozytorium

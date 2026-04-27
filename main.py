@@ -185,16 +185,23 @@ async def play(interaction: discord.Interaction, search: str):
     try:
         await interaction.followup.send(f"⏳ Pobieram... ({url_type})")
         info = await YTDLSource.get_info(search, loop=bot.loop)
-        logger.info(f"✅ /play: {len(info.get('entries', []))} wpisów znaleźliśmy")
         
-        if not info or not info.get("entries"):
+        # Bezpieczna obsługa None i empty
+        if not isinstance(info, dict):
+            info = {"entries": []}
+        
+        entries = info.get("entries", [])
+        logger.info(f"✅ /play: {len(entries)} wpisów znaleźliśmy")
+        
+        if not entries:
             await interaction.followup.send(f"❌ Brak utworów ({url_type})")
             logger.warning(f"Brak: {search[:50]}")
             return
         
-        urls = [e["url"] for e in info.get("entries", []) if e and "url" in e]
+        urls = [e["url"] for e in entries if isinstance(e, dict) and "url" in e]
         if not urls:
             await interaction.followup.send(f"❌ Brak dostępnych utworów")
+            logger.warning(f"Brak URL w wpisach: {search[:50]}")
             return
         
         # PLAYLISTA (>1 utwór)
@@ -213,18 +220,22 @@ async def play(interaction: discord.Interaction, search: str):
             if interaction.guild.voice_client.is_playing():
                 if guild_id not in bot.queue: bot.queue[guild_id] = []
                 bot.queue[guild_id].append(urls[0])
-                title = info["entries"][0].get("title", "Utwór")
+                title = entries[0].get("title", "Utwór") if isinstance(entries[0], dict) else "Utwór"
                 logger.info(f"➕ Dodano do kolejki: {title}")
                 await interaction.followup.send(f"➕ **{title}**")
             else:
                 try:
                     player = await YTDLSource.from_url(urls[0], loop=bot.loop, stream=True)
+                    if not player:
+                        await interaction.followup.send(f"❌ Nie mogę przygotować utworu")
+                        return
                     def after_playing(error):
                         if error: 
                             logger.error(f"Błąd FFmpeg: {error}")
                         asyncio.run_coroutine_threadsafe(play_next(interaction), bot.loop)
                     interaction.guild.voice_client.play(player, after=after_playing)
                     await update_status(player.title)
+                    user_storage.add_to_history(interaction.user.id, urls[0], player.title)
                     logger.info(f"🎵 Gram: {player.title}")
                     await interaction.followup.send(f"🎵 **{player.title}**")
                 except Exception as e:
