@@ -88,12 +88,14 @@ class YTDLSource(discord.PCMVolumeTransformer):
         except Exception as e:
             logger.warning(f"from_url błąd: {str(e)[:60]} - fallback na search")
             # Fallback: spróbuj wyszukać na YouTube
+            # Extrahuj query z URL
+            query = url.split('/')[-1] if '/' in url else url
             try:
                 search_opts = get_ydl_search_options()
                 ydl_search = yt_dlp.YoutubeDL(search_opts)
-                data = await loop.run_in_executor(None, lambda: ydl_search.extract_info(f"ytsearch:{url}", download=False))
-            except:
-                logger.error(f"from_url fallback failed: {url[:50]}")
+                data = await loop.run_in_executor(None, lambda: ydl_search.extract_info(f"ytsearch:{query}", download=False))
+            except Exception as e2:
+                logger.error(f"from_url fallback failed: {query[:50]} - {str(e2)[:50]}")
                 return None
 
         if data is None or not data:
@@ -125,11 +127,14 @@ class YTDLSource(discord.PCMVolumeTransformer):
         except Exception as e:
             logger.warning(f"get_info fallback: {str(e)[:60]}")
             # Fallback: szukaj na YouTube zamiast dawać up
-            logger.info(f"📍 Fallback na wyszukiwanie: {url[:50]}")
+            # Extrahuj query z URL (np. "track_id" z https://open.spotify.com/track/track_id)
+            query = url.split('/')[-1] if '/' in url else url
+            logger.info(f"📍 Fallback na wyszukiwanie: {query[:50]}")
             try:
-                search_url = f"ytsearch:{url}"
+                search_url = f"ytsearch:{query}"
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
                 return data if data else {"entries": []}
-            except:
+            except Exception as e2:
+                logger.warning(f"get_info fallback search also failed: {str(e2)[:60]}")
                 return {"entries": []}
