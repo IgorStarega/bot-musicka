@@ -13,7 +13,12 @@ COOKIES_PATH = "config/cookies.txt"
 
 class _YtdlpLogger:
     """Przekierowuje WSZYSTKIE komunikaty yt-dlp przez Python logging.
-    Zapobiega pojawianiu się surowych linii ERROR: w logach Dockera."""
+
+    Wszystkie poziomy (debug/info/warning/error) trafiają do logger.debug(),
+    dzięki czemu żadna linia 'ERROR:' lub 'WARNING:' z yt-dlp nie pojawia się
+    bezpośrednio w logach Dockera (domyślny poziom to INFO).
+    Nasze własne logger.warning/error() nadal działają normalnie.
+    """
     def debug(self, msg):
         logger.debug(f"[yt-dlp] {msg}")
     def info(self, msg):
@@ -66,7 +71,7 @@ def _get_spotify_title(url):
         )
         if resp.status_code == 200:
             return resp.json().get("title", "")
-        logger.warning(f"[Spotify oEmbed] HTTP {resp.status_code} dla {url[:60]}")
+        logger.warning(f"[Spotify oEmbed] HTTP {resp.status_code} dla {url[:60]}...")
     except Exception as e:
         logger.warning(f"[Spotify oEmbed] {type(e).__name__}: {e}")
     return ""
@@ -188,7 +193,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.info(f"[get_info] Spotify → oEmbed → YouTube search")
             title = await loop.run_in_executor(None, _get_spotify_title, url)
             if not title:
-                logger.warning(f"[get_info] oEmbed nieudane dla Spotify URL - nie można wyszukać bez tytułu")
+                logger.warning(f"[get_info] Spotify oEmbed API nie zwróciło tytułu - utwór zostanie pominięty. Sprawdź czy link Spotify jest poprawny.")
                 return {"entries": []}
             else:
                 logger.debug(f"[get_info] oEmbed title: {title[:50]}")

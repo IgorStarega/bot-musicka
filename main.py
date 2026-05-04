@@ -654,13 +654,11 @@ async def resume(interaction: discord.Interaction):
 
 @bot.tree.command(name="volume", description="Zmień głośność bota (0-100)")
 @app_commands.describe(vol="Głośność od 0 do 100")
-async def volume(interaction: discord.Interaction, vol: int):
+async def volume(interaction: discord.Interaction, vol: app_commands.Range[int, 0, 100]):
     guild_id = interaction.guild_id
     vc = interaction.guild.voice_client
     if not vc or (not vc.is_playing() and not vc.is_paused()):
         return await interaction.response.send_message("Nic nie gra.")
-    if vol < 0 or vol > 100:
-        return await interaction.response.send_message("❌ Głośność musi być między 0 a 100!")
     if isinstance(vc.source, discord.PCMVolumeTransformer):
         vc.source.volume = vol / 100
         logger.info(f"🔊 /volume {vol} [{guild_id}]")
