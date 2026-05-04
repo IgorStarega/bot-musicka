@@ -35,14 +35,17 @@ def is_spotify_track(url):
 
 
 def get_ydl_opts():
-    """Proste opcje yt-dlp"""
+    """Proste opcje yt-dlp - zmuszamy do pobierania"""
     opts = {
+        "format": "bestaudio/best",
+        "outtmpl": "/tmp/%(id)s.%(ext)s",
         "quiet": True,
         "no_warnings": True,
         "socket_timeout": 30,
-        "extractor_args": {
-            "youtube": {"player_client": ["web", "default"]}
-        }
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "m4a",
+        }],
     }
     if os.path.exists(COOKIES_PATH):
         opts["cookiefile"] = COOKIES_PATH
@@ -61,54 +64,66 @@ class YTDLSource(discord.PCMVolumeTransformer):
         loop = loop or asyncio.get_event_loop()
         ydl_opts = get_ydl_opts()
         
+        # Dla wyszukiwania użyj innych opcji
+        search_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "socket_timeout": 30,
+            "default_search": "ytsearch1",
+        }
+        
         try:
             ydl = yt_dlp.YoutubeDL(ydl_opts)
-            # Użyj download=False ale weź URL z formats
+            # Próbuj bez download - weź info
             data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+            
+            if data and isinstance(data, dict):
+                # Szukaj URL w różnych miejscach
+                audio_url = data.get("url")
+                
+                # Sprawdź formats
+                if not audio_url and "formats" in data:
+                    for f in reversed(data["formats"]):
+                        if f.get("url") and f.get("ext") in ("m4a", "mp4", "webm", "null"):
+                            audio_url = f["url"]
+                            break
+                
+                # Fallback - zbuduj z ID
+                if not audio_url and "id" in data:
+                    video_id = data["id"]
+                    # YouTube live stream URL
+                    audio_url = f"https://www.youtube.com/watch?v={video_id}"
+                
+                if audio_url:
+                    logger.info(f"[from_url] OK: {data.get('title', 'unknown')[:30]}")
+                    return cls(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), data=data)
+                else:
+                    logger.warning(f"[from_url] Brak URL w danych")
+                    return None
+            else:
+                logger.warning(f"[from_url] Brak danych")
+                return None
+                
         except Exception as e:
-            logger.warning(f"[from_url] Błąd: {e}, próbuję wyszukiwanie...")
+            logger.warning(f"[from_url] Błąd: {e}")
+            # Fallback: szukaj na YouTube
             query = url.split("/")[-1].split("?")[0] if "/" in url else url
             try:
-                ydl2 = yt_dlp.YoutubeDL(ydl_opts)
+                ydl2 = yt_dlp.YoutubeDL(search_opts)
                 data = await loop.run_in_executor(
                     None, lambda: ydl2.extract_info(f"ytsearch1:{query}", download=False)
                 )
+                if data and "entries" in data and data["entries"]:
+                    data = data["entries"][0]
+                    audio_url = data.get("url")
+                    if not audio_url and "id" in data:
+                        audio_url = f"https://www.youtube.com/watch?v={data['id']}"
+                    if audio_url:
+                        logger.info(f"[from_url] Fallback OK: {data.get('title', '?')[:30]}")
+                        return cls(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), data=data)
             except Exception as e2:
                 logger.error(f"[from_url] Fallback failed: {e2}")
-                return None
-        
-        if not data:
-            logger.warning("[from_url] Brak danych")
             return None
-        
-        if "entries" in data:
-            entries = [e for e in data["entries"] if e is not None]
-            if not entries:
-                logger.warning("[from_url] Brak valid entries")
-                return None
-            data = entries[0]
-        
-        if not data or not isinstance(data, dict):
-            logger.warning(f"[from_url] Nieprawidłowe dane: {type(data)}")
-            return None
-        
-        # Weź URL - najpierw direct, potem z formats
-        audio_url = data.get("url")
-        if not audio_url and "formats" in data:
-            # Weź pierwszy format z audio
-            for f in data["formats"]:
-                if f.get("ext") in ("m4a", "mp4", "webm"):
-                    audio_url = f.get("url")
-                    break
-        
-        if not audio_url and "id" in data:
-            audio_url = f"https://www.youtube.com/watch?v={data['id']}"
-        
-        if not audio_url:
-            logger.warning("[from_url] Brak URL")
-            return None
-        
-        logger.info(f"[from_url] Odtwarzam: {data.get('title', 'unknown')}")
         return cls(discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS), data=data)
 
 

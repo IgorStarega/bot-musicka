@@ -1,100 +1,91 @@
-# Analiza Kodu i Propozycje Update'ów - Bot Musicka
+# Bot Musicka - Analiza i Pomysły v2.0
 
-## 🆘 Critical Bugs Fixed (v1.3.0 patch2 - 27 kwietnia 2026 - 07:30 UTC)
+## 🔴 KRITYCZNE Błędy (naprawione v2.0 - 4 maja 2026)
 
-### Issue 1: `yt-dlp-youtube-oauth2` PLUGIN FORCUJE OAUTH2
-*   **Przyczyna:** `yt-dlp-youtube-oauth2` plugin w requirements.txt wymuszał OAuth2
-*   **Error:** `[youtube+oauth2] HTTP Error 400 / Sign in to confirm you're not a bot`
-*   **Fix:** ✅ **USUNIĘTY** plugin z requirements.txt - teraz yt-dlp używa web_embedded
-*   **Impact:** KRYTYCZE - to był ROOT CAUSE całego problemu!
+### Problem 1: YouTube Format Not Available
+- **Błąd:** `Requested format is not available. Use --list-formats`
+- **Przyczyna:** `bestaudio/best` nie działa dla wielu filmów na VPS
+- **Rozwiązanie v2.0:** Używamy `extract_info(download=False)` + `formats` → szukamy URL ręcznie
 
-### Issue 2: Fallback Search Zwraca Empty Entries
-*   **Przyczyna:** `extract_flat="in_playlist"` nie działa z ytsearch
-*   **Fix:** ✅ Zmieniono na `extract_flat=False` + `playlistend=5` dla lepszych wyników
-*   **Fix:** ✅ Fallback search teraz prawidłowo ekstrahuje query z URL
+### Problem 2: None w Entries
+- **Błąd:** `entries[0] is NoneType`
+- **Przyczyna:** yt-dlp zwraca listę z elementami `None`
+- **Rozwiązanie:** Filtrujemy `None`: `entries = [e for e in data["entries"] if e is not None]`
 
-### Issue 3: Niedostateczny Logging
-*   **Przyczyna:** Nie można było widzieć gdzie się łamie
-*   **Fix:** ✅ DODANE [get_info], [from_url], [/play] prefixes w logach
-*   **Fix:** ✅ Logowanie KAŻDEGO kroku w exception handlers
-*   **Impact:** Teraz logi będą jasne i diagnozowalne
+### Problem 3: Brak URL w Entry
+- **Błąd:** `Brak URL w wpisach: ...`
+- **Przyczyna:** YouTube search zwraca tylko `id`, nie `url`
+- **Rozwiązanie:** Konwertujemy `id` → `https://www.youtube.com/watch?v={id}`
 
-### Issue 4: Brak Timeout'u w yt-dlp
-*   **Przyczyna:** yt-dlp mogł wisieć na YouTube
-*   **Fix:** ✅ Dodano `socket_timeout: 30` i User-Agent header
+### Problem 4: Spotify oEmbed → YouTube Search
+- **Błąd:** Spotify title → ytsearch zwraca puste lub złe wyniki
+- **Rozwiązanie:** Prosty `ytsearch1:{title}` z filtrowaniem None
 
-### Przed:
+---
+
+## 📋 Stan v2.0 (4 maja 2026)
+
+### ✅ Działające:
+- Radio (stacje z API)
+- Kolejka utworów
+- Komendy: /play, /skip, /stop, /radio, /queue, /disconnect
+- Auto-leave gdy bot sam na kanale
+
+### ⚠️ Testowane:
+- YouTube (formaty bywają niedostępne)
+- Spotify ( przez oEmbed → YouTube search)
+
+### 🔧 Do naprawy:
+- Format YouTube - czasem nie działa bestaudio
+- Lepszy fallback gdy format недоступный
+
+---
+
+## 💡 Pomysły na v2.1
+
+1. **Multi-format fallback:**
+   - Próbuj `bestaudio` → jak fail to `m4a` → jak fail to `webm` → jak fail to `direct URL`
+
+2. **Cache URL:**
+   - Zapisuj działające URL do pliku tymczasowego
+   - Odświeżaj tylko co 24h
+
+3. **Lepszy YouTube search:**
+   - Użyj `youtube-search` API zamiast yt-dlp
+   - Lub `yt-dlp "ytsearch10:{query}" --print url`
+
+4. **Invidious instance:**
+   - Użyj publicznej instancji Invidious zamiast YouTube
+   - Np. `https://invidious.jingl.xyz/api/v1/videos/{id}`
+
+5. **Pobieranie (offline mode):**
+   - Pobieraj audio do `/tmp`
+   - Odtwarzaj z pliku lokalnego
+
+---
+
+## 📊 Testowanie
+
+### Test 1: YouTube
 ```
-[youtube+oauth2] HTTP Error 400 (PLUGIN wymuszał OAuth2)
-✅ /play: 0 wpisów znaleźliśmy (empty results)
-Brak loggingu gdzie się łamie
+/play https://www.youtube.com/watch?v=VIDEO_ID
 ```
 
-### Teraz:
+### Test 2: YouTube Search
 ```
-✅ web_embedded client (PLUGIN USUNIĘTY)
-✅ [get_info PRIMARY SUCCESS] Got data with entries count: 5
-✅ [/play] Entries count: 5
-✅ Każdy krok zalogowany - jasna diagnostyka
+/play nazwa piosenki
+```
+
+### Test 3: Spotify
+```
+/play https://open.spotify.com/track/TRACK_ID
+```
+
+### Test 4: Radio
+```
+/radio 130  (RMF FM)
 ```
 
 ---
 
-## 🔍 Analiza Błędów i Ryzyk (Code Audit)
-
-### 1. Brak `cookies.txt` w repozytorium
-*   **Ryzyko:** `music_handler.py` wymaga pliku `cookies.txt` do omijania blokad YouTube.
-*   **Status:** ✅ Wdrożono walidację przy starcie i logowanie statusu w `main.py`.
-
-### 2. Wycieki pamięci / zasobów (FFmpeg)
-*   **Ryzyko:** `discord.FFmpegPCMAudio` bywa problematyczny pod kątem zamykania procesów.
-*   **Status:** ✅ Wdrożono `on_voice_state_update` (Auto-Leave), który czyści zasoby, gdy bot zostaje sam.
-
-### 3. Obsługa Spotify
-*   **Ryzyko:** Nie można pobrać metadanych (DRM protection).
-*   **Status:** ✅ Zmieniłem strategię – teraz szukamy na YouTube zamiast pobierać metadane. Spotify track → YouTube search. Spotify playlist → Dummy entries z wyszukiwaniem.
-
-### 4. Błędy sieciowe (Radio)
-*   **Ryzyko:** Linki radiowe mogą wygasnąć.
-*   **Status:** ✅ Wdrożono obsługę wyjątków w komendzie `/radio` oraz dynamiczne budowanie URL dla OpenFM.
-
----
-
-## 💡 Pomysły na Update (Roadmap 2.0)
-
-### Poziom: Stabilność (Must-have)
-1.  **System Auto-Reconnect:** ✅ Wdrożono przez parametry `-reconnect` w FFmpeg.
-2.  **Health Check dla Radia:** Skrypt sprawdzający dostępność stacji raz na 24h.
-3.  **Auto-Leave:** ✅ Wdrożono. Bot wychodzi po opuszczeniu kanału przez ludzi.
-
-### Poziom: Funkcjonalność (User Experience)
-4.  **Komenda `/queue`:** ✅ Wdrożono. Wyświetla listę oczekujących utworów (pierwsze 10).
-5.  **Komenda `/status`:** ✅ Wdrożono. Diagnostyka bota (Discord, Voice, Queue, Radio API, Ping).
-6.  **Komenda `/test`:** ✅ Wdrożono. Test wszystkich komponentów (Bot, Discord.py, FFmpeg, Radio API, yt-dlp, Logging).
-7.  **Pobieranie Utworów (Pre-buffering):** Szybsze startowanie piosenki (w planach).
-8.  **System Ulubionych:** ✅ Wdrożono `/favorites` i `/favorite add` (v1.3.0).
-9.  **Historia Słuchania:** ✅ Wdrożono `/history` (v1.3.0).
-10. **Wyszukiwanie interaktywne:** `/search <fraza>` wyświetla 5 wyników jako przyciski.
-
-### Poziom: Pro/Admin (Zarządzanie)
-11. **Panel Webowy (Dashboard):** Prosty podgląd statystyk bota.
-12. **Wsparcie dla Multi-Server:** ✅ Wdrożono pełną separację kolejek.
-13. **Logs System:** ✅ Wdrożono `bot.log` przez moduł `logging`.
-14. **Komenda `/mystats`:** ✅ Wdrożono statystyki użytkownika (v1.3.0).
-15. **Komenda `/nowplaying`:** ✅ Wdrożono info o aktualnym utworze (v1.3.0).
-
----
-
-## 🔥 Nowe Horyzonty (Roadmap 2.0 - "Advanced Features")
-
-13. **System "DJ Role":** Ograniczenie komend skip/stop dla osób z konkretną rolą na Discordzie.
-14. **Interaktywne Karty Utworów (Rich Embeds):** Wyświetlanie miniatury (thumbnail), czasu trwania i paska postępu w Embedzie.
-15. **Filtry Audio (FFmpeg):** Komenda `/effect bassboost` lub `/effect nightcore`.
-16. **System Lyrics:** Pobieranie tekstów piosenek przez API Genius/Musixmatch.
-17. **Tryb AI DJ:** Automatyczne dodawanie piosenek do kolejki na podstawie "podobnych utworów" z YouTube, gdy kolejka się skończy.
-18. **Wsparcie dla lokalnych plików:** Folder `/music` na VPS, z którego bot może puszczać muzykę offline.
-19. **Wsparcie dla SoundCloud i Deezer:** Rozszerzenie źródeł muzyki poza YouTube/Spotify.
-
----
-*Autor: GitHub Copilot (Gemini 3 Flash (Preview))*
-*Data: 23 kwietnia 2026*
+*Ostatnia aktualizacja: 4 maja 2026*
