@@ -3,6 +3,7 @@ import asyncio
 import yt_dlp
 import os
 import logging
+import subprocess
 import requests
 
 logger = logging.getLogger('MusicBot')
@@ -29,17 +30,21 @@ class _YtdlpLogger:
         logger.debug(f"[yt-dlp] {msg}")
 
 # Opcje dla FFmpeg
+# stderr=DEVNULL: FFmpeg outputuje swoje błędy do stderr kontenera (Docker logs),
+# co zaśmieca logi nawet gdy błędy są nieistotne. Wyciszamy to całkowicie.
 FFMPEG_OPTIONS = {
     "before_options": (
         "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
         "-timeout 30000000"
     ),
     "options": "-vn -dn -sn -ignore_unknown -probesize 32k -analyzeduration 0 -threads 1",
+    "stderr": subprocess.DEVNULL,
 }
 
 RADIO_FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -timeout 30000000",
     "options": "-vn",
+    "stderr": subprocess.DEVNULL,
 }
 
 # --- FUNKCJE POMOCNICZE (Przywrócone dla main.py) ---

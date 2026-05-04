@@ -21,6 +21,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger('MusicBot')
 
+# discord.py emituje dużo INFO-level wiadomości (gateway, voice, http) które
+# zaśmiecają logi Dockera. Ustawiamy poziom WARNING - błędy i ostrzeżenia
+# nadal będą widoczne, ale rutynowe INFO znikają.
+logging.getLogger('discord').setLevel(logging.WARNING)
+
 class MusicBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -184,7 +189,9 @@ async def play_next(interaction: discord.Interaction):
             await update_status(idle=True)
     except Exception as e:
         logger.error(f"Błąd kolejki: {e}")
-        await play_next(interaction)
+        # Nie rekursuj - gdyby błąd był permanentny, nastąpiłaby nieskończona pętla
+        bot.current_track.pop(guild_id, None)
+        await update_status(idle=True)
 
 @bot.tree.command(name="play", description="Odtwarza piosenkę lub playlistę (YouTube, Spotify)")
 async def play(interaction: discord.Interaction, search: str):
