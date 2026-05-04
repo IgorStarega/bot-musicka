@@ -234,10 +234,20 @@ async def play(interaction: discord.Interaction, search: str):
             logger.warning(f"Brak: {search[:50]}")
             return
         
-        urls = [e["url"] for e in entries if isinstance(e, dict) and "url" in e]
-        titles = [e.get("title", "Utwór") if isinstance(e, dict) else "Utwór" for e in entries if isinstance(e, dict) and "url" in e]
+        urls = []
+        titles = []
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            if "url" in e:
+                urls.append(e["url"])
+                titles.append(e.get("title", "Utwór"))
+            elif "id" in e and "title" in e:
+                youtube_url = f"https://www.youtube.com/watch?v={e['id']}"
+                urls.append(youtube_url)
+                titles.append(e.get("title", "Utwór"))
         if not urls:
-            await interaction.followup.send(f"❌ Brak dostępnych utworów")
+            await interaction.followup.send(f"❌ Brak dostępnych utworów (spróbuj ponownie)")
             logger.warning(f"Brak URL w wpisach: {search[:50]}")
             return
         
@@ -264,7 +274,8 @@ async def play(interaction: discord.Interaction, search: str):
                     title_hint = titles[0] if titles[0] != "Utwór" else None
                     player = await YTDLSource.from_url(urls[0], loop=bot.loop, stream=True, title_hint=title_hint)
                     if not player:
-                        await interaction.followup.send(f"❌ Nie mogę przygotować utworu")
+                        await interaction.followup.send(f"❌ Nie mogę odtworzyć tego utworu. Spróbuj ponownie za chwilę.")
+                        logger.warning(f"/play from_url returned None dla: {urls[0][:50]}")
                         return
                     def after_playing(error):
                         if error: 

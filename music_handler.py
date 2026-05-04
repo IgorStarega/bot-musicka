@@ -177,11 +177,17 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         if "entries" in data:
             if not data["entries"]:
+                logger.warning(f"[from_url] No entries found in data")
                 return None
             data = data["entries"][0]
 
+        if not isinstance(data, dict):
+            logger.warning(f"[from_url] Data is not dict: {type(data)}")
+            return None
+
         filename = data.get("url")
         if not filename:
+            logger.warning(f"[from_url] No URL in data: {data.get('title', 'unknown')}")
             return None
             
         logger.info(f"✅ Przygotowano: {data.get('title')}")
