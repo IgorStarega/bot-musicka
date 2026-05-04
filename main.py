@@ -1,5 +1,5 @@
 """
-Bot Musicka v2.0 - CZISTY KOD
+Bot Musicka v2.1 - STABILNY
 """
 
 import discord

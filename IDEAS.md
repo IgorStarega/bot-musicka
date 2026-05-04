@@ -1,66 +1,51 @@
-# Bot Musicka - Analiza i Pomysły v2.0
+# Bot Musicka - Analiza i Pomysły v2.1
 
-## 🔴 KRITYCZNE Błędy (naprawione v2.0 - 4 maja 2026)
+## ✅ v2.1 Naprawy (4 maja 2026)
 
 ### Problem 1: YouTube Format Not Available
-- **Błąd:** `Requested format is not available. Use --list-formats`
-- **Przyczyna:** `bestaudio/best` nie działa dla wielu filmów na VPS
-- **Rozwiązanie v2.0:** Używamy `extract_info(download=False)` + `formats` → szukamy URL ręcznie
+- **Błąd:** `Requested format is not available`
+- **Rozwiązanie v2.1:**
+  1. Multi-format fallback (m4a → webm → mp4 → null)
+  2. Invidious API jako backup dla samego URL
+  3. Ręczne szukanie w formats array
 
-### Problem 2: None w Entries
-- **Błąd:** `entries[0] is NoneType`
-- **Przyczyna:** yt-dlp zwraca listę z elementami `None`
-- **Rozwiązanie:** Filtrujemy `None`: `entries = [e for e in data["entries"] if e is not None]`
-
-### Problem 3: Brak URL w Entry
-- **Błąd:** `Brak URL w wpisach: ...`
-- **Przyczyna:** YouTube search zwraca tylko `id`, nie `url`
-- **Rozwiązanie:** Konwertujemy `id` → `https://www.youtube.com/watch?v={id}`
-
-### Problem 4: Spotify oEmbed → YouTube Search
-- **Błąd:** Spotify title → ytsearch zwraca puste lub złe wyniki
-- **Rozwiązanie:** Prosty `ytsearch1:{title}` z filtrowaniem None
+### Problem 2: Cookies wymagane
+- **Błąd:** `Sign in to confirm you're not a bot`
+- **Rozwiązanie:** Invidious API nie wymaga cookies
 
 ---
 
-## 📋 Stan v2.0 (4 maja 2026)
+## 📋 Stan v2.1 (4 maja 2026)
 
 ### ✅ Działające:
 - Radio (stacje z API)
 - Kolejka utworów
 - Komendy: /play, /skip, /stop, /radio, /queue, /disconnect
 - Auto-leave gdy bot sam na kanale
+- YouTube (teraz z fallback)
+- Spotify (przez oEmbed → YouTube search)
 
-### ⚠️ Testowane:
-- YouTube (formaty bywają niedostępne)
-- Spotify ( przez oEmbed → YouTube search)
-
-### 🔧 Do naprawy:
-- Format YouTube - czasem nie działa bestaudio
-- Lepszy fallback gdy format недоступный
+### 🔧 Do testów:
+- Czy Invidious działa na VPS
 
 ---
 
-## 💡 Pomysły na v2.1
+## 💡 Pomysły na v2.2
 
-1. **Multi-format fallback:**
-   - Próbuj `bestaudio` → jak fail to `m4a` → jak fail to `webm` → jak fail to `direct URL`
+1. **Interactive Search:**
+   - Pokaż 5 wyników z YouTube
+   - User wybiera numerem (1-5)
 
-2. **Cache URL:**
-   - Zapisuj działające URL do pliku tymczasowego
-   - Odświeżaj tylko co 24h
+2. **Audio Filtry:**
+   - bassboost, nightcore
+   - przez ffmpeg -af filters
 
-3. **Lepszy YouTube search:**
-   - Użyj `youtube-search` API zamiast yt-dlp
-   - Lub `yt-dlp "ytsearch10:{query}" --print url`
+3. **Cache URL:**
+   - Zapisuj działające URL do pliku
+   - Odświeżaj co 24h
 
-4. **Invidious instance:**
-   - Użyj publicznej instancji Invidious zamiast YouTube
-   - Np. `https://invidious.jingl.xyz/api/v1/videos/{id}`
-
-5. **Pobieranie (offline mode):**
-   - Pobieraj audio do `/tmp`
-   - Odtwarzaj z pliku lokalnego
+4. **Dashboard:**
+   - HTTP endpoint z statystykami
 
 ---
 

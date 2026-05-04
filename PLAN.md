@@ -2,43 +2,37 @@
 
 ## 📊 Historia Wersji
 
-### v1.5.0 (27 kwietnia 2026) - Optymalizacja
-- ✅ /disconnect komenda
-- ✅ Kolejka trzyma {"url", "title"} zamiast gołych URL
-- ✅ Lepsze logi DEBUG
-- ✅ /status pokazuje prawdziwy stan
+### v2.1 (4 maja 2026) - Stabilność YouTube
+- ✅ Multi-format fallback (m4a → webm → mp4 → null)
+- ✅ Invidious API jako backup
+- ✅ Lepszy error handling
+- ✅ Debug logi
 
 ### v2.0 (4 maja 2026) - Naprawa
 - ✅ Przepisany music_handler.py (prostszy kod)
 - ✅ Przepisany main.py (prostszy kod)
 - ✅ Filtruj None z entries
 - ✅ Konwertuj id → url
-- ⚠️ YouTube format - nadal bywa problem
-
-### v2.1 (W planach) - Stabilność YouTube
 
 ---
 
-## 🎯 v2.1 Priorytety
+## 🎯 v2.2 Priorytety
 
-### 1. FIX: YouTube Format Problem [KRYTYCZNE]
-- **Problem:** `Requested format is not available`
-- **Rozwiązania do testów:**
-  - a) `format: "bestaudio/[Protocol=http*m4a]/bestaudio/best"`
-  - b) Użyj Invidious API zamiast yt-dlp
-  - c) Pobieraj audio do /tmp potem odtwarzaj
+### 1. FEAT: Interactive Search
+- Pokaż 5 wyników z YouTube
+- User wybiera numerem
 
-### 2. FEAT: Lepszy Fallback
-- Gdy główny format fail → próbuj alternatywny
-- Loguj każdą próbę by wiedzieć co działa
+### 2. FEAT: Audio Filtry
+- bassboost, nightcore
+- przez ffmpeg filters
 
-### 3. IMPROVE: Spotify
-- Lepsze wyszukiwanie YouTube z tytułu Spotify
-- Cache результатов
+### 3. IMPROVE: Cache
+- Cache działających URL
+- Odświeżaj co 24h
 
 ---
 
-## 🧪 Testy Przed Wydaniem v2.1
+## 🧪 Testy Przed Wydaniem v2.2
 
 ```bash
 # Testuj różne formaty YouTube
@@ -56,12 +50,10 @@
 
 ---
 
-## 📦 Przyszłe Funkcje (v2.2+)
+## 📦 Przyszłe Funkcje (v2.3+)
 
 1. **Playlist YouTube** - obsługa pełnych playlist
-2. **Search interaktywny** - pokaż 5 wyników, wybierz
-3. **Audio filtry** - bassboost, nightcore
-4. **Dashboard web** - statystyki przez HTTP
+2. **Dashboard web** - statystyki przez HTTP
 
 ---
 
