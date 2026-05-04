@@ -482,8 +482,8 @@ async def test(interaction: discord.Interaction):
     
     # Test 5: yt-dlp
     try:
-        import yt_dlp  # noqa: F401
-        test_results.append("✅ yt-dlp - OK")
+        import yt_dlp
+        test_results.append(f"✅ yt-dlp - OK ({yt_dlp.version.__version__})")
     except ImportError:
         test_results.append("❌ yt-dlp - FAIL")
     
