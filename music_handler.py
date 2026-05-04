@@ -146,6 +146,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
             ydl = yt_dlp.YoutubeDL(opts)
             data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
             logger.debug(f"[from_url] OK, has entries: {'entries' in data if data else False}")
+            if data and isinstance(data, dict) and "id" in data and "url" not in data:
+                data["url"] = f"https://www.youtube.com/watch?v={data['id']}"
         except Exception as e:
             logger.warning(f"[from_url] {type(e).__name__}: {str(e)[:80]}")
             # Fallback: spróbuj wyszukać na YouTube
@@ -167,6 +169,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 ydl_search = yt_dlp.YoutubeDL(search_opts)
                 data = await loop.run_in_executor(None, lambda: ydl_search.extract_info(f"ytsearch:{query}", download=False))
                 logger.debug(f"[from_url] Fallback OK")
+                if data and "entries" in data and data["entries"]:
+                    for entry in data["entries"]:
+                        if isinstance(entry, dict) and "id" in entry and "url" not in entry:
+                            entry["url"] = f"https://www.youtube.com/watch?v={entry['id']}"
             except Exception as e2:
                 logger.error(f"[from_url] Fallback FAILED: {type(e2).__name__}: {str(e2)[:80]}")
                 return None
@@ -180,6 +186,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 logger.warning(f"[from_url] No entries found in data")
                 return None
             data = data["entries"][0]
+            if isinstance(data, dict) and "id" in data and "url" not in data:
+                data["url"] = f"https://www.youtube.com/watch?v={data['id']}"
 
         if not isinstance(data, dict):
             logger.warning(f"[from_url] Data is not dict: {type(data)}")
@@ -215,6 +223,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
                     data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
                 if data and data.get("entries"):
                     logger.info(f"[get_info] Spotify→YT OK: {len(data['entries'])} wpisów")
+                    for entry in data["entries"]:
+                        if isinstance(entry, dict) and "id" in entry and "url" not in entry:
+                            entry["url"] = f"https://www.youtube.com/watch?v={entry['id']}"
                     return data
             except Exception as e:
                 logger.error(f"[get_info] Spotify→YT FAILED: {type(e).__name__}: {str(e)[:80]}")
@@ -227,6 +238,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
             entry_count = len(data.get("entries", [])) if data else 0
             logger.info(f"[get_info] OK, entries: {entry_count}")
+            if data and "entries" in data and data["entries"]:
+                for entry in data["entries"]:
+                    if isinstance(entry, dict) and "id" in entry and "url" not in entry:
+                        entry["url"] = f"https://www.youtube.com/watch?v={entry['id']}"
             if data and (data.get("entries") or "url" in data or "formats" in data):
                 if "entries" not in data:
                     data = {"entries": [data], "title": data.get("title", "")}
@@ -256,9 +271,14 @@ class YTDLSource(discord.PCMVolumeTransformer):
             fallback_opts = get_ydl_search_options()
             with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_url, download=False))
-            logger.info(f"[get_info] Fallback OK, entries: {len(data.get('entries', [])) if data else 0}")
+            entry_count = len(data.get("entries", [])) if data else 0
+            logger.info(f"[get_info] Fallback OK, entries: {entry_count}")
             if not data:
                 return {"entries": []}
+            if "entries" in data:
+                for entry in data["entries"]:
+                    if isinstance(entry, dict) and "id" in entry and "url" not in entry:
+                        entry["url"] = f"https://www.youtube.com/watch?v={entry['id']}"
             if "entries" not in data and ("url" in data or "formats" in data):
                 data = {"entries": [data], "title": data.get("title", "")}
             return data
