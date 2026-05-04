@@ -2,7 +2,7 @@
 
 Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ulubione stacje radiowe.
 
-**Wersja:** 1.3.0-patch2 (Społeczna + Interaktywna + Hotfixes)
+**Wersja:** 1.5.0 (Optymalizacja & Cleanup)
 **Język:** Python 3.11+
 **Technologia:** discord.py, yt-dlp, FFmpeg
 **Status:** Production-Ready ✅
@@ -44,31 +44,36 @@ Podstawowy bot muzyczny na Discorda obsługujący YouTube, Spotify oraz Twoje ul
 - `/play [link/fraza]` - Odtwarzanie muzyki lub playlist (YT/Spotify). Automatyczne fallback na wyszukiwanie jeśli niedostępne.
 - `/radio [ID]` - Odtwarzanie stacji radiowej z API (z autocomplete).
 - `/list_radio` - Lista dostępnych stacji radiowych.
-- `/queue` - Podgląd kolejki (pierwsze 10 utworów).
+- `/queue` - Podgląd kolejki z tytułami (pierwsze 10 utworów).
 - `/skip` - Pominięcie aktualnego utworu.
 - `/stop` - Zatrzymanie i czyszczenie kolejki.
+- `/pause` - Wstrzymanie odtwarzania.
+- `/resume` - Wznowienie odtwarzania po pauzie.
+- `/volume [0-100]` - Zmiana głośności bota.
+- `/disconnect` - Odłącz bota z kanału i wyczyść kolejkę.
 
-### Statystyki & Zarządzanie (v1.3.0)
+### Statystyki & Zarządzanie
 - `/nowplaying` - Info o aktualnie grającym utworze.
 - `/history` - Historia ostatnio granych utworów (ostatnie 20).
 - `/favorites` - Lista ulubionych utworów.
-- `/favorite [add|remove]` - Dodaj/usuń do ulubionych *(alpha)*.
+- `/favorite [add|remove]` - Dodaj/usuń do ulubionych (wybór z listy).
 - `/mystats` - Twoje statystyki (grane utwory, skipy, ulubione).
 
 ### Diagnostyka
 - `/status` - Diagnostyka bota (Discord, FFmpeg, Radio API, Ping).
 - `/test` - Test wszystkich komponentów bota.
 
-## 🔄 Ostatnie Poprawki (v1.3.0)
-- ✅ System przechowywania ulubionych i historii (JSON-based, persistent).
-- ✅ Komenda `/history` - Przeglądaj ostatnie słuchane utwory.
-- ✅ Komenda `/favorites` - Pokaż ulubione utwory.
-- ✅ Komenda `/mystats` - Statystyki użytkownika z embedem.
-- ✅ Komenda `/nowplaying` - Info o aktualnym utworze.
-- ✅ Tracking skip'ów i ulubionych w statystykach.
-- ✅ Integracja user_storage.py z całym botem.
+## 🔄 Ostatnie Poprawki (v1.5.0)
+- ✅ Nowa komenda `/disconnect` - odłącz bota i wyczyść kolejkę.
+- ✅ `/queue` wyświetla teraz tytuły zamiast surowych URL-i.
+- ✅ `/favorite` - proper slash-command choices (add/remove) zamiast wolnego tekstu.
+- ✅ Naprawiony bug: `play_next()` nie crashował gdy `from_url()` zwracało `None`.
+- ✅ Kolejka przechowuje tytuły dla poprawnego wyświetlania.
+- ✅ Zredukowane nadmiarowe logi INFO → DEBUG w `music_handler.py`.
+- ✅ `config.py` używa teraz `logger` zamiast `print()`.
+- ✅ Usunięte stare tagi `(v1.3.0)` z opisów komend.
 
 ---
 Autor: Bot Musicka Team
 Data: 27 kwietnia 2026
-Wersja: 1.3.0 (Społeczna + Interaktywna)
+Wersja: 1.5.0 (Optymalizacja & Cleanup)

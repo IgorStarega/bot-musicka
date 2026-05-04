@@ -51,11 +51,31 @@
 40. **[ZAKOŃCZONE]** Improvement: KOMPLETNY logging w get_info(), from_url(), /play z prefixes
 41. **[ZAKOŃCZONE]** Improvement: Dodany socket_timeout i User-Agent do yt-dlp options
 
+### v1.4.0 Milestones (Commands & Fixes - 27 kwietnia 2026):
+42. **[ZAKOŃCZONE]** Fix: `/nowplaying` - teraz pokazuje prawdziwy tytuł i URL aktualnego utworu
+43. **[ZAKOŃCZONE]** Fix: `/favorite add/remove` - działa przez `current_track` tracking
+44. **[ZAKOŃCZONE]** FEAT: `/pause` - wstrzymanie odtwarzania
+45. **[ZAKOŃCZONE]** FEAT: `/resume` - wznowienie odtwarzania po pauzie
+46. **[ZAKOŃCZONE]** FEAT: `/volume [0-100]` - zmiana głośności
+47. **[ZAKOŃCZONE]** Improvement: `from_url()` - `title_hint` param dla lepszego fallback search
+48. **[ZAKOŃCZONE]** Improvement: Tracking `current_track` per guild w MusicBot
+
+### v1.5.0 Milestones (Optymalizacja & Cleanup - 27 kwietnia 2026):
+49. **[ZAKOŃCZONE]** Feat: Dodana komenda `/disconnect` (odłącz bota + wyczyść kolejkę)
+50. **[ZAKOŃCZONE]** Improvement: kolejka przechowuje `{"url", "title"}` zamiast gołych URL-i → `/queue` wyświetla tytuły
+51. **[ZAKOŃCZONE]** Fix: `play_next()` pomija utwór gdy `from_url()` zwróci None (było crashowanie)
+52. **[ZAKOŃCZONE]** Improvement: `/favorite` używa `Literal["add","remove"]` → proper slash-command choices
+53. **[ZAKOŃCZONE]** Refactor: nadmiarowe step-by-step logi INFO → DEBUG w `music_handler.py`
+54. **[ZAKOŃCZONE]** Fix: `config.py` używa `logger.error()` zamiast `print()`
+55. **[ZAKOŃCZONE]** Cleanup: usunięte stale tagi `(v1.3.0)` z opisów wszystkich komend
+56. **[ZAKOŃCZONE]** Fix: bare `except:` zastąpione przez `except Exception:` w `/test`
+57. **[ZAKOŃCZONE]** Fix: `/status` pokazuje prawidłowy komunikat końcowy zamiast zawsze "OK"
+
 ### Dane bota:
-- **Wersja:** 1.3.0-patch2 (Social & Interactive + Comprehensive Hotfixes)
+- **Wersja:** 1.5.0 (Optymalizacja & Cleanup)
 - **Platforma:** Linux / Docker
 - **Typ:** Zaawansowany Bot Muzyczny
-- **Status:** Production-Ready ✅ (OAuth2 removed, Full logging, Fallback search, DRM-free)
+- **Status:** Production-Ready ✅ (17 komend, tytuły w kolejce, disconnect, zoptymalizowane logi)
 
 ---
-Ostatnia aktualizacja: 27 kwietnia 2026 (v1.3.0-patch2 - Comprehensive Hotfixes)
+Ostatnia aktualizacja: 27 kwietnia 2026 (v1.5.0 - Optymalizacja & Cleanup)
