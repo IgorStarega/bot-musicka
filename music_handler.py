@@ -197,7 +197,14 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 logger.warning(f"[from_url] No entries found in data")
                 return None
             data = data["entries"][0]
-            if isinstance(data, dict) and "id" in data and "url" not in data:
+            logger.info(f"[from_url] Pierwszy entry: {type(data).__name__}, keys: {list(data.keys()) if isinstance(data, dict) else data}")
+            if data is None:
+                logger.warning(f"[from_url] entries[0] is None!")
+                return None
+            if not isinstance(data, dict):
+                logger.warning(f"[from_url] entries[0] nie jest dict: {data}")
+                return None
+            if "id" in data and "url" not in data:
                 data["url"] = f"https://www.youtube.com/watch?v={data['id']}"
 
         if not isinstance(data, dict):

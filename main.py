@@ -242,13 +242,14 @@ async def play(interaction: discord.Interaction, search: str):
             if "url" in e:
                 urls.append(e["url"])
                 titles.append(e.get("title", "Utwór"))
-            elif "id" in e and "title" in e:
+            elif "id" in e:
                 youtube_url = f"https://www.youtube.com/watch?v={e['id']}"
                 urls.append(youtube_url)
                 titles.append(e.get("title", "Utwór"))
         if not urls:
             await interaction.followup.send(f"❌ Brak dostępnych utworów (spróbuj ponownie)")
             logger.warning(f"Brak URL w wpisach: {search[:50]}")
+            logger.warning(f"Debug entries: {[str(e)[:100] for e in entries[:3]]}")
             return
         
         # PLAYLISTA (>1 utwór)
