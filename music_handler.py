@@ -123,6 +123,13 @@ def get_ydl_search_options():
     opts["extract_flat"] = False
     # Zwiększ limit wyników
     opts["playlistend"] = 5
+    # Dla wyszukiwania używamy prostszego klienta - mweb/ios może blokować
+    opts["extractor_args"] = {
+        "youtube": {
+            "player_client": ["web", "default"],
+            "skip_unavailable_videos": True
+        }
+    }
     return opts
 
 class YTDLSource(discord.PCMVolumeTransformer):
@@ -142,6 +149,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         else:
             opts = get_ydl_options()
 
+        data = None
         try:
             ydl = yt_dlp.YoutubeDL(opts)
             data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
@@ -169,16 +177,19 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 ydl_search = yt_dlp.YoutubeDL(search_opts)
                 data = await loop.run_in_executor(None, lambda: ydl_search.extract_info(f"ytsearch:{query}", download=False))
                 logger.debug(f"[from_url] Fallback OK")
+                if data and isinstance(data, dict):
+                    logger.info(f"[from_url] Fallback data keys: {list(data.keys())}")
                 if data and "entries" in data and data["entries"]:
                     for entry in data["entries"]:
                         if isinstance(entry, dict) and "id" in entry and "url" not in entry:
                             entry["url"] = f"https://www.youtube.com/watch?v={entry['id']}"
+                logger.info(f"[from_url] Fallback search zwróciło: {type(data).__name__ if data else 'None'}")
             except Exception as e2:
                 logger.error(f"[from_url] Fallback FAILED: {type(e2).__name__}: {str(e2)[:80]}")
                 return None
 
         if data is None or not data:
-            logger.warning(f"[from_url] Data is None or empty")
+            logger.warning(f"[from_url] Data is None or empty after fallback")
             return None
 
         if "entries" in data:
@@ -224,8 +235,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 if data and data.get("entries"):
                     logger.info(f"[get_info] Spotify→YT OK: {len(data['entries'])} wpisów")
                     for entry in data["entries"]:
-                        if isinstance(entry, dict) and "id" in entry and "url" not in entry:
-                            entry["url"] = f"https://www.youtube.com/watch?v={entry['id']}"
+                        if isinstance(entry, dict):
+                            if "id" in entry and "url" not in entry:
+                                entry["url"] = f"https://www.youtube.com/watch?v={entry['id']}"
+                            elif "url" not in entry and "title" not in entry:
+                                logger.warning(f"[get_info] Entry bez id/url/title, pomijam: {str(entry)[:80]}")
+                                entry["url"] = f"ytsearch:{entry.get('title', 'unknown')}"
                     return data
             except Exception as e:
                 logger.error(f"[get_info] Spotify→YT FAILED: {type(e).__name__}: {str(e)[:80]}")
