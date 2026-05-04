@@ -35,17 +35,11 @@ def is_spotify_track(url):
 
 
 def get_ydl_opts():
-    """Proste opcje yt-dlp - zmuszamy do pobierania"""
+    """Op yt-dlp - bez format, tylko info"""
     opts = {
-        "format": "bestaudio/best",
-        "outtmpl": "/tmp/%(id)s.%(ext)s",
         "quiet": True,
         "no_warnings": True,
         "socket_timeout": 30,
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "m4a",
-        }],
     }
     if os.path.exists(COOKIES_PATH):
         opts["cookiefile"] = COOKIES_PATH
