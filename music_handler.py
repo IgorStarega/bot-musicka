@@ -10,6 +10,19 @@ logger = logging.getLogger('MusicBot')
 # Ścieżka do ciasteczek YouTube (eksportowane z przeglądarki)
 COOKIES_PATH = "config/cookies.txt"
 
+
+class _YtdlpLogger:
+    """Przekierowuje WSZYSTKIE komunikaty yt-dlp przez Python logging.
+    Zapobiega pojawianiu się surowych linii ERROR: w logach Dockera."""
+    def debug(self, msg):
+        logger.debug(f"[yt-dlp] {msg}")
+    def info(self, msg):
+        logger.debug(f"[yt-dlp] {msg}")
+    def warning(self, msg):
+        logger.debug(f"[yt-dlp] {msg}")
+    def error(self, msg):
+        logger.debug(f"[yt-dlp] {msg}")
+
 # Opcje dla FFmpeg
 FFMPEG_OPTIONS = {
     "before_options": (
@@ -67,7 +80,7 @@ def _extract_youtube_video_id(url):
     return url.split("/")[-1].split("?")[0]
 
 def get_ydl_options(for_playlist=False):
-    """Opcje yt-dlp z ios+web_embedded client (stabilny na VPS) + cookies + timeout."""
+    """Opcje yt-dlp z mweb+ios client (lepiej omija bot-detection na VPS) + cookies + timeout."""
     opts = {
         "format": "bestaudio/best",
         "noplaylist": False,
@@ -78,12 +91,13 @@ def get_ydl_options(for_playlist=False):
         "ignoreerrors": True if for_playlist else False,
         "extract_flat": False,
         "socket_timeout": 30,
+        "logger": _YtdlpLogger(),
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         },
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios", "web_embedded", "tv_embedded"],
+                "player_client": ["mweb", "ios", "web_embedded"],
                 "skip_unavailable_videos": True
             }
         },
@@ -174,8 +188,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.info(f"[get_info] Spotify → oEmbed → YouTube search")
             title = await loop.run_in_executor(None, _get_spotify_title, url)
             if not title:
-                title = url.split("/")[-1].split("?")[0]
-                logger.warning(f"[get_info] oEmbed nieudane, szukam po ID: {title}")
+                logger.warning(f"[get_info] oEmbed nieudane dla Spotify URL - nie można wyszukać bez tytułu")
+                return {"entries": []}
             else:
                 logger.debug(f"[get_info] oEmbed title: {title[:50]}")
             search_url = f"ytsearch:{title}"
@@ -206,6 +220,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.warning(f"[get_info] {type(e).__name__}: {str(e)[:80]}")
 
         # Dla bezpośredniego URL YouTube (nie playlist) - zwróć syntetyczny wpis
+        # Tytuł to samo ID wideo (nie "Utwór [ID]") - dzięki temu fallback ytsearch działa
         if is_youtube_url(url) and not is_youtube_playlist(url) and not url.startswith("ytsearch:"):
             logger.info(f"[get_info] Syntetyczny wpis dla YouTube URL")
             if "v=" in url:
@@ -214,7 +229,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 video_id = url.split("youtu.be/")[-1].split("?")[0]
             else:
                 video_id = url.split("/")[-1].split("?")[0]
-            return {"entries": [{"url": url, "title": f"Utwór [{video_id}]"}]}
+            return {"entries": [{"url": url, "title": video_id}]}
 
         # Ogólny fallback: szukaj na YouTube
         query = url.split('/')[-1].split('?')[0] if '/' in url else url
