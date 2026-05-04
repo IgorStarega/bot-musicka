@@ -35,9 +35,8 @@ def is_spotify_track(url):
 
 
 def get_ydl_opts():
-    """Proste opcje yt-dlp - używamy default klienta"""
+    """Proste opcje yt-dlp"""
     opts = {
-        "format": "bestaudio/best",
         "quiet": True,
         "no_warnings": True,
         "socket_timeout": 30,
@@ -64,10 +63,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
         
         try:
             ydl = yt_dlp.YoutubeDL(ydl_opts)
-            data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=not stream))
+            # Użyj download=False ale weź URL z formats
+            data = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
         except Exception as e:
             logger.warning(f"[from_url] Błąd: {e}, próbuję wyszukiwanie...")
-            # Fallback: szukaj na YouTube
             query = url.split("/")[-1].split("?")[0] if "/" in url else url
             try:
                 ydl2 = yt_dlp.YoutubeDL(ydl_opts)
@@ -78,12 +77,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 logger.error(f"[from_url] Fallback failed: {e2}")
                 return None
         
-        # Parsuj wynik
         if not data:
             logger.warning("[from_url] Brak danych")
             return None
         
-        # Jeśli to playlista z entries
         if "entries" in data:
             entries = [e for e in data["entries"] if e is not None]
             if not entries:
@@ -95,13 +92,20 @@ class YTDLSource(discord.PCMVolumeTransformer):
             logger.warning(f"[from_url] Nieprawidłowe dane: {type(data)}")
             return None
         
-        # Konwertuj id -> url jeśli potrzeba
-        if "id" in data and "url" not in data:
-            data["url"] = f"https://www.youtube.com/watch?v={data['id']}"
-        
+        # Weź URL - najpierw direct, potem z formats
         audio_url = data.get("url")
+        if not audio_url and "formats" in data:
+            # Weź pierwszy format z audio
+            for f in data["formats"]:
+                if f.get("ext") in ("m4a", "mp4", "webm"):
+                    audio_url = f.get("url")
+                    break
+        
+        if not audio_url and "id" in data:
+            audio_url = f"https://www.youtube.com/watch?v={data['id']}"
+        
         if not audio_url:
-            logger.warning("[from_url] Brak URL w danych")
+            logger.warning("[from_url] Brak URL")
             return None
         
         logger.info(f"[from_url] Odtwarzam: {data.get('title', 'unknown')}")
